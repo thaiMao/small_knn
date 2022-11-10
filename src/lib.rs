@@ -668,11 +668,26 @@ where
         neighbors: &[EnterPoint<N, M_MAX, T>],
         distance: &Distance,
     ) -> EnterPoint<N, M_MAX, T> {
-        todo!();
+        let mut highest = None;
+        let mut highest_index = 0;
+        for (index, element) in neighbors.iter().enumerate() {
+            let temp = distance.calculate(element.value, self.value);
+
+            if highest.is_none() {
+                highest = Some(temp);
+            }
+
+            if temp < highest.unwrap() {
+                highest = Some(temp);
+                highest_index = index;
+            }
+        }
+
+        neighbors.get(highest_index).unwrap().clone()
     }
 
     fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T {
-        todo!();
+        distance.calculate(self.value, enter_point.value)
     }
 
     fn extract_nearest(
