@@ -1,10 +1,18 @@
-use crate::array_vec::ArrayVec;
+use crate::distance::Distance;
+use crate::enter_point::EnterPoint;
+use crate::node::Node;
+use crate::query::{Element, QueryElement};
 use num::{cast, Float, Num};
 use rand::prelude::*;
+use search_layer::SearchLayer;
 use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref};
 
 mod array_vec;
-
+mod distance;
+mod enter_point;
+mod node;
+mod query;
+mod search_layer;
 pub struct Setup;
 pub struct Ready;
 
@@ -549,246 +557,17 @@ where
     // Algorithm 2 - Search layer
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct EnterPoint<const N: usize, const M_MAX: usize, T> {
-    index: usize,
-    layer: usize,
-    value: [T; N],
-    // TODO Explain why 64.
-    connections: ArrayVec<Element, 64>,
-    enter_point_index: usize,
-}
-
-impl<const N: usize, const M_MAX: usize, T> EnterPoint<N, M_MAX, T> {
-    fn new(value: [T; N], index: usize, layer: usize, enter_point_index: usize) -> Self {
-        Self {
-            index,
-            layer,
-            value,
-            connections: ArrayVec::new(),
-            enter_point_index,
-        }
-    }
-
-    /// Returns connections for a given layer.
-    fn neighbourhood(&self, layer: usize) -> impl Iterator<Item = Element> {
-        self.connections
-            .into_iter()
-            .flatten()
-            .filter(move |connection| connection.layer == layer)
-    }
-
-    /// Return the number of connections for a given layer.
-    fn number_of_connections(&self, layer: usize) -> usize {
-        self.connections
-            .into_iter()
-            .flatten()
-            .filter(move |connection| connection.layer == layer)
-            .fold(0, |total, _| total + 1)
-    }
-}
-
-impl<const N: usize, const M_MAX: usize, T> Node<N, M_MAX, T> for EnterPoint<N, M_MAX, T>
-where
-    T: Float + Sum,
-{
-    fn value(&self) -> [T; N] {
-        self.value
-    }
-    fn nearest(
-        &self,
-        closest_found_elements: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        let mut lowest = None;
-        let mut lowest_index = 0;
-        for (index, element) in closest_found_elements.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
-
-            if lowest.is_none() {
-                lowest = Some(temp);
-            }
-
-            if temp < lowest.unwrap() {
-                lowest = Some(temp);
-                lowest_index = index;
-            }
-        }
-
-        closest_found_elements.get(lowest_index).unwrap().clone()
-    }
-
-    fn furthest(
-        &self,
-        neighbors: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        let mut highest = None;
-        let mut highest_index = 0;
-        for (index, element) in neighbors.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
-
-            if highest.is_none() {
-                highest = Some(temp);
-            }
-
-            if temp > highest.unwrap() {
-                highest = Some(temp);
-                highest_index = index;
-            }
-        }
-
-        neighbors.get(highest_index).unwrap().clone()
-    }
-
-    fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T {
-        distance.calculate(self.value, enter_point.value)
-    }
-}
-
-impl<const N: usize, const M_MAX: usize, T> PartialEq<Element> for EnterPoint<N, M_MAX, T>
-where
-    T: Float,
-{
-    fn eq(&self, connection: &Element) -> bool {
-        self.index == connection.index
-    }
-}
-
-/// * `M_MAX` - Maximum number of connections for each element per layer.
-#[derive(Clone, Copy, Debug)]
-struct QueryElement<const N: usize, const M_MAX: usize, T>
-where
-    T: Num,
-{
-    value: [T; N],
-}
-
-impl<const N: usize, const M_MAX: usize, T> Node<N, M_MAX, T> for QueryElement<N, M_MAX, T>
-where
-    T: Float + Sum,
-{
-    fn value(&self) -> [T; N] {
-        self.value
-    }
-
-    fn nearest(
-        &self,
-        closest_found_elements: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        let mut lowest = None;
-        let mut lowest_index = 0;
-        for (index, element) in closest_found_elements.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
-
-            if lowest.is_none() {
-                lowest = Some(temp);
-            }
-
-            if temp < lowest.unwrap() {
-                lowest = Some(temp);
-                lowest_index = index;
-            }
-        }
-
-        closest_found_elements.get(lowest_index).unwrap().clone()
-    }
-
-    fn furthest(
-        &self,
-        neighbors: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        let mut highest = None;
-        let mut highest_index = 0;
-        for (index, element) in neighbors.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
-
-            if highest.is_none() {
-                highest = Some(temp);
-            }
-
-            if temp < highest.unwrap() {
-                highest = Some(temp);
-                highest_index = index;
-            }
-        }
-
-        neighbors.get(highest_index).unwrap().clone()
-    }
-
-    fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T {
-        distance.calculate(self.value, enter_point.value)
-    }
-}
-
-impl<const N: usize, const M_MAX: usize, T> QueryElement<N, M_MAX, T>
-where
-    T: Float + Sum + Clone + Copy + PartialOrd,
-{
-    fn new(value: [T; N]) -> Self {
-        Self { value }
-    }
-}
-
-trait Node<const N: usize, const M_MAX: usize, T>
-where
-    T: Float + Sum,
-{
-    fn value(&self) -> [T; N];
-
-    fn nearest(
-        &self,
-        closest_found_elements: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T>;
-
-    fn furthest(
-        &self,
-        neighbors: &[EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T>;
-
-    fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T;
-}
-
 #[derive(Clone, Debug)]
 pub enum NeighborSelectionAlgorithm {
     Simple,
     Heuristic,
 }
 
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub enum Distance {
-    Euclidean,
-}
-
-impl Distance {
-    /// * `N` - N-space
-    pub fn calculate<const N: usize, T>(&self, q: [T; N], p: [T; N]) -> T
-    where
-        T: Float + Sum + Clone + Copy,
-    {
-        match self {
-            // TODO SIMD
-            Self::Euclidean => q
-                .iter()
-                .cloned()
-                .zip(p.iter().cloned())
-                .map(|(q_i, p_i)| (q_i - p_i).powf(cast::<usize, T>(2).unwrap()))
-                .sum::<T>()
-                .sqrt(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod knn_tests {
+    use super::HNSW;
+    use crate::distance::Distance;
     use std::ops::Deref;
-
-    use super::{Distance, HNSW};
 
     const EF_CONSTRUCTION: usize = 4;
     const DIMENSIONS: usize = 2;
@@ -830,123 +609,6 @@ mod knn_tests {
         assert_eq!(neighbors.unwrap(), [1, 0]);
 
         knn.clear();
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Element {
-    index: usize,
-    layer: usize,
-}
-
-impl Element {
-    /// * `index` - Index location of enter point in self.enter_points.
-    /// * `layer` - Layer of the enter point.
-    fn new(index: usize, layer: usize) -> Self {
-        Self { index, layer }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct SearchLayer<const N: usize, const M_MAX: usize, T>
-where
-    T: Float,
-{
-    visited_elements: Vec<EnterPoint<N, M_MAX, T>>,
-    candidates: Vec<EnterPoint<N, M_MAX, T>>,
-    found_nearest_neighbors: Vec<EnterPoint<N, M_MAX, T>>,
-    distance: Distance,
-}
-
-impl<'a, const N: usize, const M_MAX: usize, T> SearchLayer<N, M_MAX, T>
-where
-    T: Float + Sum + Debug,
-{
-    fn new(distance: Distance, capacity: usize) -> Self {
-        Self {
-            visited_elements: Vec::with_capacity(capacity),
-            candidates: Vec::with_capacity(capacity),
-            found_nearest_neighbors: Vec::with_capacity(capacity),
-            distance,
-        }
-    }
-    fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
-        &mut self,
-        query_element: &QueryElement<N, M_MAX, T>,
-        enter_points: &[EnterPoint<N, M_MAX, T>],
-        layer: usize,
-    ) -> &[EnterPoint<N, M_MAX, T>] {
-        // v ← ep // set of visited elements
-        self.visited_elements.clear();
-        self.visited_elements.extend_from_slice(enter_points);
-        // C ← ep // set of candidates
-        self.candidates.clear();
-        self.candidates.extend_from_slice(enter_points);
-        // W ← ep (Dynamic list of found nearest neighbors).
-        self.found_nearest_neighbors.clear();
-        self.found_nearest_neighbors.extend_from_slice(enter_points);
-
-        while self.candidates.len() > 0 {
-            // Extract closest element.
-            // Sort candidate elements.
-            // Extract closest neighbor to element from the candidates.
-            // Sort the working queue from furthest to nearest.
-            self.candidates.sort_by(|a, b| {
-                let distance_a_q = self.distance.calculate(query_element.value(), a.value);
-                let distance_b_q = self.distance.calculate(query_element.value(), b.value);
-                let x = distance_a_q - distance_b_q;
-
-                if x < T::zero() {
-                    Ordering::Greater
-                } else if x == T::zero() {
-                    Ordering::Equal
-                } else {
-                    Ordering::Less
-                }
-            });
-            let nearest = self.candidates.pop().unwrap();
-
-            let furthest =
-                query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
-
-            if query_element.distance(&nearest, &self.distance)
-                > query_element.distance(&furthest, &self.distance)
-            {
-                // All elements in W are evaluated
-                break;
-            }
-
-            for e in nearest
-                .neighbourhood(layer)
-                .map(|element| enter_points.get(element.index).unwrap())
-                .cloned()
-            {
-                // Update C and W
-                if self.visited_elements.iter().find(|&v| v == &e).is_none() {
-                    self.visited_elements.push(e.clone());
-                    let furthest =
-                        query_element.furthest(&self.found_nearest_neighbors, &self.distance);
-
-                    if query_element.distance(&e, &self.distance)
-                        > query_element.distance(&furthest, &self.distance)
-                    {
-                        self.candidates.push(e.clone());
-                        self.found_nearest_neighbors.push(e);
-                        if self.found_nearest_neighbors.len()
-                            > NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
-                        {
-                            // Remove furthest element from W to q
-                        }
-                    }
-                }
-            }
-        }
-
-        if self.found_nearest_neighbors.len() < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN {
-            &self.found_nearest_neighbors
-        } else {
-            &self.found_nearest_neighbors[..NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN]
-        }
     }
 }
 
