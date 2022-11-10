@@ -792,7 +792,6 @@ mod knn_tests {
 
     const EF_CONSTRUCTION: usize = 4;
     const DIMENSIONS: usize = 2;
-    const MAX_CONNECTIONS: usize = 16;
     const K: usize = 2;
 
     #[test]
