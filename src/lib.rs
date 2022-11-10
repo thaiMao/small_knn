@@ -178,8 +178,6 @@ where
     where
         Q: Deref + Deref<Target = [T; N]>,
     {
-        debug_assert!(M <= M_MAX);
-
         self.found_nearest_neighbors.clear();
         let query_element = QueryElement::new(*value);
 
@@ -882,7 +880,25 @@ where
         self.found_nearest_neighbors.extend_from_slice(enter_points);
 
         while self.candidates.len() > 0 {
-            let nearest = query_element.nearest(self.candidates.as_slice(), &self.distance);
+            // Extract closest element.
+            // Sort candidate elements.
+            // Extract closest neighbor to element from the candidates.
+            // Sort the working queue from furthest to nearest.
+            self.candidates.sort_by(|a, b| {
+                let distance_a_q = self.distance.calculate(query_element.value(), a.value);
+                let distance_b_q = self.distance.calculate(query_element.value(), b.value);
+                let x = distance_a_q - distance_b_q;
+
+                if x < T::zero() {
+                    Ordering::Greater
+                } else if x == T::zero() {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
+            });
+            let nearest = self.candidates.pop().unwrap();
+
             let furthest =
                 query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
 
