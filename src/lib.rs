@@ -478,8 +478,23 @@ where
 
         while self.working_queue.len() > 0 && self.neighbors.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN
         {
-            let nearest =
-                base_element.extract_nearest(self.working_queue.as_mut_slice(), &self.distance);
+            // Extract closest neighbor to element from the queue.
+            // Sort the working queue from furthest to nearest.
+            self.working_queue.sort_by(|a, b| {
+                let distance_a_q = self.distance.calculate(base_element.value(), a.value);
+                let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                let x = distance_a_q - distance_b_q;
+
+                if x < T::zero() {
+                    Ordering::Greater
+                } else if x == T::zero() {
+                    Ordering::Equal
+                } else {
+                    Ordering::Less
+                }
+            });
+            let nearest = self.working_queue.pop().unwrap();
+
             if base_element.distance(&nearest, &self.distance)
                 < self
                     .neighbors
@@ -499,9 +514,24 @@ where
             while self.discarded_candidates.len() > 0
                 && self.neighbors.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN
             {
-                self.neighbors.push(
-                    base_element.extract_nearest(self.working_queue.as_mut_slice(), &self.distance),
-                );
+                // Extract closest neighbor to element from the queue.
+                // Sort the working queue from furthest to nearest.
+                self.working_queue.sort_by(|a, b| {
+                    let distance_a_q = self.distance.calculate(base_element.value(), a.value);
+                    let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                    let x = distance_a_q - distance_b_q;
+
+                    if x < T::zero() {
+                        Ordering::Greater
+                    } else if x == T::zero() {
+                        Ordering::Equal
+                    } else {
+                        Ordering::Less
+                    }
+                });
+                let nearest = self.working_queue.pop().unwrap();
+
+                self.neighbors.push(nearest);
             }
         }
         self.neighbors.clone().try_into().unwrap()
@@ -604,14 +634,6 @@ where
     fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T {
         distance.calculate(self.value, enter_point.value)
     }
-
-    fn extract_nearest(
-        &self,
-        enter_points: &mut [EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        todo!();
-    }
 }
 
 impl<const N: usize, const M_MAX: usize, T> PartialEq<Element> for EnterPoint<N, M_MAX, T>
@@ -689,14 +711,6 @@ where
     fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T {
         distance.calculate(self.value, enter_point.value)
     }
-
-    fn extract_nearest(
-        &self,
-        enter_points: &mut [EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T> {
-        todo!();
-    }
 }
 
 impl<const N: usize, const M_MAX: usize, T> QueryElement<N, M_MAX, T>
@@ -727,12 +741,6 @@ where
     ) -> EnterPoint<N, M_MAX, T>;
 
     fn distance(&self, enter_point: &EnterPoint<N, M_MAX, T>, distance: &Distance) -> T;
-
-    fn extract_nearest(
-        &self,
-        enter_points: &mut [EnterPoint<N, M_MAX, T>],
-        distance: &Distance,
-    ) -> EnterPoint<N, M_MAX, T>;
 }
 
 #[derive(Clone, Debug)]
@@ -811,7 +819,7 @@ mod knn_tests {
             },
         );
         let neighbors = knn.search_neighbors::<K, _>(MyNode { value: [2.1, 2.1] });
-        //assert_eq!(neighbors.unwrap(), [1, 0]);
+        assert_eq!(neighbors.unwrap(), [1, 0]);
 
         knn.clear();
     }
