@@ -15,34 +15,36 @@ const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
 const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = false;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
+const M: usize = 64;
+const DEFAULT_MAX_CONNECTIONS: usize = 16;
 
 /// * `N` - Number of dimensions.
 #[derive(Clone, Debug)]
-pub struct HNSW<const EF_CONSTRUCTION: usize, const N: usize, const M_MAX: usize, T, Stage = Setup>
+pub struct HNSW<const EF_CONSTRUCTION: usize, const N: usize, T, Stage = Setup>
 where
     T: Float + Sum + Debug,
 {
     stage: PhantomData<Stage>,
-    enter_points: Vec<EnterPoint<N, M_MAX, T>>,
+    enter_points: Vec<EnterPoint<N, M, T>>,
     rng: rand::rngs::ThreadRng,
-    search_layer: SearchLayer<N, M_MAX, T>,
-    found_nearest_neighbors: Vec<EnterPoint<N, M_MAX, T>>,
-    working_queue: Vec<EnterPoint<N, M_MAX, T>>,
-    neighbors: Vec<EnterPoint<N, M_MAX, T>>,
-    discarded_candidates: Vec<EnterPoint<N, M_MAX, T>>,
+    search_layer: SearchLayer<N, M, T>,
+    found_nearest_neighbors: Vec<EnterPoint<N, M, T>>,
+    working_queue: Vec<EnterPoint<N, M, T>>,
+    neighbors: Vec<EnterPoint<N, M, T>>,
+    discarded_candidates: Vec<EnterPoint<N, M, T>>,
     normalization_factor: T,
     neighbor_selection_algorithm: NeighborSelectionAlgorithm,
     extend_candidates: bool,
     keep_pruned_connections: bool,
     distance: Distance,
     capacity: usize,
-    nearest_elements: Vec<EnterPoint<N, M_MAX, T>>,
+    nearest_elements: Vec<EnterPoint<N, M, T>>,
     enter_point_key: usize,
-    econn: Vec<EnterPoint<N, M_MAX, T>>,
+    econn: Vec<EnterPoint<N, M, T>>,
+    max_connections: usize,
 }
 
-impl<const EF_CONSTRUCTION: usize, const N: usize, const M_MAX: usize, T> Default
-    for HNSW<EF_CONSTRUCTION, N, M_MAX, T, Setup>
+impl<const EF_CONSTRUCTION: usize, const N: usize, T> Default for HNSW<EF_CONSTRUCTION, N, T, Setup>
 where
     T: Float + Sum + Debug,
 {
@@ -67,12 +69,12 @@ where
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
             enter_point_key: 0,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
+            max_connections: DEFAULT_MAX_CONNECTIONS,
         }
     }
 }
 
-impl<const EF_CONSTRUCTION: usize, const N: usize, const M_MAX: usize, T>
-    HNSW<EF_CONSTRUCTION, N, M_MAX, T, Setup>
+impl<const EF_CONSTRUCTION: usize, const N: usize, T> HNSW<EF_CONSTRUCTION, N, T, Setup>
 where
     T: Float + Sum + Debug,
 {
@@ -97,6 +99,7 @@ where
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
             enter_point_key: 0,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
+            max_connections: DEFAULT_MAX_CONNECTIONS,
         }
     }
 
@@ -133,7 +136,13 @@ where
         self
     }
 
-    pub fn build(&mut self) -> HNSW<EF_CONSTRUCTION, N, M_MAX, T, Ready> {
+    /// Set the maximum number of connections for each element per layer.
+    pub fn set_max_connections(&mut self, max_connections: usize) -> &mut Self {
+        self.max_connections = max_connections;
+        self
+    }
+
+    pub fn build(&mut self) -> HNSW<EF_CONSTRUCTION, N, T, Ready> {
         let enter_points = Vec::with_capacity(self.capacity);
         let found_nearest_neighbors = Vec::with_capacity(self.capacity);
         let working_queue = Vec::with_capacity(self.capacity);
@@ -144,7 +153,7 @@ where
 
         let rng = rand::thread_rng();
 
-        HNSW::<EF_CONSTRUCTION, N, M_MAX, T, Ready> {
+        HNSW::<EF_CONSTRUCTION, N, T, Ready> {
             stage: PhantomData::<Ready>,
             enter_points,
             rng,
@@ -162,19 +171,19 @@ where
             nearest_elements,
             enter_point_key: 0,
             econn,
+            max_connections: self.max_connections,
         }
     }
 }
 
-impl<'a, const EF_CONSTRUCTION: usize, const N: usize, const M_MAX: usize, T>
-    HNSW<EF_CONSTRUCTION, N, M_MAX, T, Ready>
+impl<'a, const EF_CONSTRUCTION: usize, const N: usize, T> HNSW<EF_CONSTRUCTION, N, T, Ready>
 where
     T: Float + Sum + PartialEq + Debug + PartialOrd,
 {
     /// Insert elements into a graph structure.
     /// * `M` - Number of established connections.
     /// * `M_MAX` - Maximum number of connections for each element per layer.
-    pub fn insert<const M: usize, Q>(&mut self, index: usize, value: Q)
+    pub fn insert<Q>(&mut self, index: usize, value: Q)
     where
         Q: Deref + Deref<Target = [T; N]>,
     {
@@ -258,7 +267,7 @@ where
                             self.econn.push(enter_point);
                         });
 
-                    if e.number_of_connections(layer) > M_MAX {
+                    if e.number_of_connections(layer) > self.max_connections {
                         let new_econn = match self.neighbor_selection_algorithm {
                             NeighborSelectionAlgorithm::Simple => self
                                 .select_neighbors_simple::<M>(
@@ -378,9 +387,9 @@ where
     // Algorithm 3 - Select neighbours simple
     fn select_neighbors_simple<const NUMBER_OF_NEIGHBOURS_TO_RETURN: usize>(
         &mut self,
-        base_element: impl Node<N, M_MAX, T>,
+        base_element: impl Node<N, M, T>,
         candidate: Candidate,
-    ) -> [EnterPoint<N, M_MAX, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
+    ) -> [EnterPoint<N, M, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
         self.neighbors.clear();
 
         match candidate {
@@ -443,12 +452,12 @@ where
     // Algorithm 4 - Select neighbours heuristic
     fn select_neighbors_heuristic<const NUMBER_OF_NEIGHBOURS_TO_RETURN: usize>(
         &mut self,
-        base_element: impl Node<N, M_MAX, T>,
+        base_element: impl Node<N, M, T>,
         candidate: Candidate,
         layer: usize,
         extend_candidates: bool,
         keep_pruned_connections: bool,
-    ) -> [EnterPoint<N, M_MAX, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
+    ) -> [EnterPoint<N, M, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
         let candidate_elements = match candidate {
             Candidate::ElementConnections => self.econn.as_slice(),
             Candidate::Neighbors => self.found_nearest_neighbors.as_slice(),
@@ -784,7 +793,6 @@ mod knn_tests {
     const EF_CONSTRUCTION: usize = 4;
     const DIMENSIONS: usize = 2;
     const MAX_CONNECTIONS: usize = 16;
-    const M: usize = 8;
     const K: usize = 2;
 
     #[test]
@@ -806,14 +814,14 @@ mod knn_tests {
             }
         }
 
-        let mut knn = HNSW::<EF_CONSTRUCTION, DIMENSIONS, MAX_CONNECTIONS, f32>::default()
+        let mut knn = HNSW::<EF_CONSTRUCTION, DIMENSIONS, f32>::default()
             .set_distance(Distance::Euclidean)
             .build();
 
-        knn.insert::<M, _>(0, MyNode { value: [1.0, 1.0] });
-        knn.insert::<M, _>(1, MyNode { value: [2.0, 2.0] });
-        knn.insert::<M, _>(2, MyNode { value: [10.0, 5.0] });
-        knn.insert::<M, _>(
+        knn.insert(0, MyNode { value: [1.0, 1.0] });
+        knn.insert(1, MyNode { value: [2.0, 2.0] });
+        knn.insert(2, MyNode { value: [10.0, 5.0] });
+        knn.insert(
             4,
             MyNode {
                 value: [11.0, 15.0],
