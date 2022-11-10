@@ -30,7 +30,7 @@ where
     working_queue: Vec<EnterPoint<N, M_MAX, T>>,
     neighbors: Vec<EnterPoint<N, M_MAX, T>>,
     discarded_candidates: Vec<EnterPoint<N, M_MAX, T>>,
-    normalization_factor: f32,
+    normalization_factor: T,
     neighbor_selection_algorithm: NeighborSelectionAlgorithm,
     extend_candidates: bool,
     keep_pruned_connections: bool,
@@ -58,7 +58,7 @@ where
             working_queue: Vec::with_capacity(DEFAULT_CAPACITY),
             neighbors: Vec::with_capacity(DEFAULT_CAPACITY),
             discarded_candidates: Vec::with_capacity(DEFAULT_CAPACITY),
-            normalization_factor: DEFAULT_NORMALIZATION_FACTOR,
+            normalization_factor: cast::<f32, T>(DEFAULT_NORMALIZATION_FACTOR).unwrap(),
             neighbor_selection_algorithm: DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM,
             extend_candidates: DEFAULT_EXTEND_CANDIDATES,
             keep_pruned_connections: DEFAULT_KEEP_PRUNED_CONNECTIONS,
@@ -88,7 +88,7 @@ where
             working_queue: Vec::with_capacity(DEFAULT_CAPACITY),
             neighbors: Vec::with_capacity(DEFAULT_CAPACITY),
             discarded_candidates: Vec::with_capacity(DEFAULT_CAPACITY),
-            normalization_factor: DEFAULT_NORMALIZATION_FACTOR,
+            normalization_factor: cast::<f32, T>(DEFAULT_NORMALIZATION_FACTOR).unwrap(),
             neighbor_selection_algorithm: DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM,
             extend_candidates: DEFAULT_EXTEND_CANDIDATES,
             keep_pruned_connections: DEFAULT_KEEP_PRUNED_CONNECTIONS,
@@ -105,7 +105,7 @@ where
         self
     }
 
-    pub fn set_normalization_factor(&mut self, normalization_factor: f32) -> &mut Self {
+    pub fn set_normalization_factor(&mut self, normalization_factor: T) -> &mut Self {
         self.normalization_factor = normalization_factor;
         self
     }
@@ -153,7 +153,7 @@ where
             working_queue,
             neighbors,
             discarded_candidates,
-            normalization_factor: DEFAULT_NORMALIZATION_FACTOR,
+            normalization_factor: cast::<f32, T>(DEFAULT_NORMALIZATION_FACTOR).unwrap(),
             neighbor_selection_algorithm: NeighborSelectionAlgorithm::Heuristic,
             extend_candidates: true,
             keep_pruned_connections: false,
@@ -190,9 +190,9 @@ where
         };
 
         // New element's level.
-        let random_number: f32 = self.rng.gen();
+        let random_number: T = cast::<f32, T>(self.rng.gen()).unwrap();
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
-        let new_element_level = new_element_level as usize;
+        let new_element_level = cast::<T, usize>(new_element_level).unwrap();
 
         let enter_point_index = self.enter_points.len();
 
