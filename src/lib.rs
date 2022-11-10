@@ -868,7 +868,7 @@ where
         query_element: &QueryElement<N, M_MAX, T>,
         enter_points: &[EnterPoint<N, M_MAX, T>],
         layer: usize,
-    ) -> [EnterPoint<N, M_MAX, T>; NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN] {
+    ) -> &[EnterPoint<N, M_MAX, T>] {
         // v ← ep // set of visited elements
         self.visited_elements.clear();
         self.visited_elements.extend_from_slice(enter_points);
@@ -935,7 +935,11 @@ where
             }
         }
 
-        self.found_nearest_neighbors.clone().try_into().unwrap()
+        if self.found_nearest_neighbors.len() < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN {
+            &self.found_nearest_neighbors
+        } else {
+            &self.found_nearest_neighbors[..NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN]
+        }
     }
 }
 
