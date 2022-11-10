@@ -1,21 +1,22 @@
 use crate::distance::Distance;
 use crate::enter_point::EnterPoint;
+use crate::node::Node;
 use crate::query::QueryElement;
 use num::Float;
 use std::{cmp::Ordering, fmt::Debug, iter::Sum};
 
 #[derive(Clone, Debug)]
-pub struct SearchLayer<const N: usize, const M_MAX: usize, T>
+pub struct SearchLayer<const N: usize, const M: usize, T>
 where
     T: Float,
 {
-    visited_elements: Vec<EnterPoint<N, M_MAX, T>>,
-    candidates: Vec<EnterPoint<N, M_MAX, T>>,
-    found_nearest_neighbors: Vec<EnterPoint<N, M_MAX, T>>,
+    visited_elements: Vec<EnterPoint<N, M, T>>,
+    candidates: Vec<EnterPoint<N, M, T>>,
+    found_nearest_neighbors: Vec<EnterPoint<N, M, T>>,
     distance: Distance,
 }
 
-impl<'a, const N: usize, const M_MAX: usize, T> SearchLayer<N, M_MAX, T>
+impl<'a, const N: usize, const M: usize, T> SearchLayer<N, M, T>
 where
     T: Float + Sum + Debug,
 {
@@ -29,10 +30,10 @@ where
     }
     fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
         &mut self,
-        query_element: &QueryElement<N, M_MAX, T>,
-        enter_points: &[EnterPoint<N, M_MAX, T>],
+        query_element: &QueryElement<N, T>,
+        enter_points: &[EnterPoint<N, M, T>],
         layer: usize,
-    ) -> &[EnterPoint<N, M_MAX, T>] {
+    ) -> &[EnterPoint<N, M, T>] {
         // v ← ep // set of visited elements
         self.visited_elements.clear();
         self.visited_elements.extend_from_slice(enter_points);
@@ -49,8 +50,12 @@ where
             // Extract closest neighbor to element from the candidates.
             // Sort the working queue from furthest to nearest.
             self.candidates.sort_by(|a, b| {
-                let distance_a_q = self.distance.calculate(query_element.value(), a.value);
-                let distance_b_q = self.distance.calculate(query_element.value(), b.value);
+                let distance_a_q = self
+                    .distance
+                    .calculate(query_element.value(), a.get_value());
+                let distance_b_q = self
+                    .distance
+                    .calculate(query_element.value(), b.get_value());
                 let x = distance_a_q - distance_b_q;
 
                 if x < T::zero() {
@@ -75,7 +80,7 @@ where
 
             for e in nearest
                 .neighbourhood(layer)
-                .map(|element| enter_points.get(element.index).unwrap())
+                .map(|element| enter_points.get(element.get_index()).unwrap())
                 .cloned()
             {
                 // Update C and W

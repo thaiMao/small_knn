@@ -27,12 +27,16 @@ impl<const N: usize, const M: usize, T> EnterPoint<N, M, T> {
         }
     }
 
+    pub fn get_value(&self) -> [T; N] {
+        self.value
+    }
+
     /// Returns connections for a given layer.
-    fn neighbourhood(&self, layer: usize) -> impl Iterator<Item = Element> {
+    pub fn neighbourhood(&self, layer: usize) -> impl Iterator<Item = Element> {
         self.connections
             .into_iter()
             .flatten()
-            .filter(move |connection| connection.layer == layer)
+            .filter(move |connection| connection.get_layer() == layer)
     }
 
     /// Return the number of connections for a given layer.
@@ -40,7 +44,7 @@ impl<const N: usize, const M: usize, T> EnterPoint<N, M, T> {
         self.connections
             .into_iter()
             .flatten()
-            .filter(move |connection| connection.layer == layer)
+            .filter(move |connection| connection.get_layer() == layer)
             .fold(0, |total, _| total + 1)
     }
 }
@@ -108,6 +112,6 @@ where
     T: Float,
 {
     fn eq(&self, connection: &Element) -> bool {
-        self.index == connection.index
+        self.index == connection.get_index()
     }
 }

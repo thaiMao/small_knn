@@ -28,7 +28,7 @@ where
         let mut lowest = None;
         let mut lowest_index = 0;
         for (index, element) in closest_found_elements.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
+            let temp = distance.calculate(element.get_value(), self.value);
 
             if lowest.is_none() {
                 lowest = Some(temp);
@@ -51,7 +51,7 @@ where
         let mut highest = None;
         let mut highest_index = 0;
         for (index, element) in neighbors.iter().enumerate() {
-            let temp = distance.calculate(element.value, self.value);
+            let temp = distance.calculate(element.get_value(), self.value);
 
             if highest.is_none() {
                 highest = Some(temp);
@@ -67,7 +67,7 @@ where
     }
 
     fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T {
-        distance.calculate(self.value, enter_point.value)
+        distance.calculate(self.value, enter_point.get_value())
     }
 }
 
@@ -89,7 +89,15 @@ pub struct Element {
 impl Element {
     /// * `index` - Index location of enter point in self.enter_points.
     /// * `layer` - Layer of the enter point.
-    fn new(index: usize, layer: usize) -> Self {
+    pub fn new(index: usize, layer: usize) -> Self {
         Self { index, layer }
+    }
+
+    pub fn get_index(&self) -> usize {
+        self.index
+    }
+
+    pub fn get_layer(&self) -> usize {
+        self.layer
     }
 }
