@@ -1,3 +1,7 @@
+# CI:
+
+[![CircleCI](https://circleci.com/gh/circleci/circleci-docs.svg?style=svg)](https://app.circleci.com/pipelines/github/thaiMao/love_thy)
+
 Under active development - DO NOT USE.
 
 An approximate K-nearest neighbor search based on navigable small world
