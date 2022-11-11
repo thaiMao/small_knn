@@ -19,10 +19,9 @@ fn main() {
         }
     }
 
-    const EF_CONSTRUCTION: usize = 4;
     const DIMENSIONS: usize = 2;
     const K: usize = 2;
-    let mut knn = HNSW::<EF_CONSTRUCTION, DIMENSIONS, f32>::default()
+    let mut knn = HNSW::<DIMENSIONS, f32>::default()
         .set_distance(Distance::Euclidean)
         .build();
 
