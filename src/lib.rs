@@ -8,7 +8,7 @@ use search_layer::SearchLayer;
 use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref};
 
 mod array_vec;
-mod distance;
+pub mod distance;
 mod enter_point;
 mod node;
 mod query;
@@ -200,7 +200,7 @@ where
 
         // Top layer for HNSW.
         let top_layer_level = match self.enter_points.get(self.enter_point_key) {
-            Some(ep) => ep.layer,
+            Some(ep) => ep.get_layer(),
             None => 0,
         };
 
@@ -214,7 +214,7 @@ where
         if self.enter_points.len() > 0 {
             for layer in top_layer_level..new_element_level + 1 {
                 let nearest_elements = self.search_layer.search::<1>(
-                    &query_element,
+                    query_element,
                     self.enter_points.as_slice(),
                     layer,
                 );
@@ -228,7 +228,7 @@ where
 
             for layer in top_layer_level.min(new_element_level)..0 {
                 let found_nearest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(
-                    &query_element,
+                    query_element,
                     self.enter_points.as_slice(),
                     layer,
                 );
@@ -269,7 +269,7 @@ where
                 for mut e in neighbors.iter().cloned() {
                     self.econn.clear();
                     e.neighbourhood(layer)
-                        .map(|element| self.enter_points.get(element.index).unwrap())
+                        .map(|element| self.enter_points.get(element.get_index()).unwrap())
                         .cloned()
                         .for_each(|enter_point| {
                             self.econn.push(enter_point);
@@ -295,7 +295,7 @@ where
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn.iter().map(|enter_point| {
-                            Element::new(enter_point.enter_point_index, enter_point.layer)
+                            Element::new(enter_point.enter_point_index, enter_point.get_layer())
                         }) {
                             e.connections.try_push(element);
                         }
@@ -345,19 +345,19 @@ where
         };
         let query_element = QueryElement::new(*value);
         self.nearest_elements.clear();
-        let level = enter_point.layer;
+        let level = enter_point.get_layer();
 
         for layer in level..=1 {
             let closest_neighbor =
                 self.search_layer
-                    .search::<1>(&query_element, &[enter_point.clone()], layer);
+                    .search::<1>(query_element, &[enter_point.clone()], layer);
             self.nearest_elements.extend_from_slice(&closest_neighbor);
             self.enter_points
                 .push(query_element.nearest(&self.nearest_elements, &self.distance));
         }
 
         let closest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(
-            &query_element,
+            query_element,
             self.enter_points.as_slice(),
             0,
         );
@@ -366,8 +366,8 @@ where
         // Return nearest elements
         // Sort elements by nearest to furthest order from query element.
         self.nearest_elements.sort_by(|a, b| {
-            let distance_a_q = self.distance.calculate(*value, a.value);
-            let distance_b_q = self.distance.calculate(*value, b.value);
+            let distance_a_q = self.distance.calculate(*value, a.get_value());
+            let distance_b_q = self.distance.calculate(*value, b.get_value());
             let x = distance_a_q - distance_b_q;
 
             if x < T::zero() {
@@ -386,7 +386,7 @@ where
         let mut output = [0; K];
 
         for i in 0..K {
-            output[i] = self.nearest_elements[i].index;
+            output[i] = self.nearest_elements[i].get_index();
         }
 
         Ok(output)
@@ -405,8 +405,8 @@ where
                 // Return nearest elements
                 // Sort elements by nearest to furthest order from query element.
                 self.found_nearest_neighbors.sort_by(|a, b| {
-                    let distance_a_q = self.distance.calculate(base_element.value(), a.value);
-                    let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                    let distance_a_q = self.distance.calculate(base_element.value(), a.value());
+                    let distance_b_q = self.distance.calculate(base_element.value(), b.value());
                     let x = distance_a_q - distance_b_q;
 
                     if x < T::zero() {
@@ -432,8 +432,8 @@ where
                 // Return nearest elements
                 // Sort elements by nearest to furthest order from query element.
                 self.econn.sort_by(|a, b| {
-                    let distance_a_q = self.distance.calculate(base_element.value(), a.value);
-                    let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                    let distance_a_q = self.distance.calculate(base_element.value(), a.value());
+                    let distance_b_q = self.distance.calculate(base_element.value(), b.value());
                     let x = distance_a_q - distance_b_q;
 
                     if x < T::zero() {
@@ -478,12 +478,12 @@ where
             for e in self.found_nearest_neighbors.iter() {
                 for e_adjacent in e
                     .neighbourhood(layer)
-                    .map(|element| self.enter_points.get(element.index).unwrap())
+                    .map(|element| self.enter_points.get(element.get_index()).unwrap())
                 {
                     if self
                         .working_queue
                         .iter()
-                        .find(|w| w.index == e_adjacent.index)
+                        .find(|w| w.get_index() == e_adjacent.get_index())
                         .is_none()
                     {
                         self.working_queue.push(e_adjacent.clone());
@@ -499,8 +499,8 @@ where
             // Extract closest neighbor to element from the queue.
             // Sort the working queue from furthest to nearest.
             self.working_queue.sort_by(|a, b| {
-                let distance_a_q = self.distance.calculate(base_element.value(), a.value);
-                let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                let distance_a_q = self.distance.calculate(base_element.value(), a.value());
+                let distance_b_q = self.distance.calculate(base_element.value(), b.value());
                 let x = distance_a_q - distance_b_q;
 
                 if x < T::zero() {
@@ -517,7 +517,7 @@ where
                 < self
                     .neighbors
                     .iter()
-                    .map(|element| self.enter_points.get(element.index).unwrap())
+                    .map(|element| self.enter_points.get(element.get_index()).unwrap())
                     .map(|n| base_element.distance(n, &self.distance))
                     .reduce(T::min)
                     .unwrap_or(T::max_value())
@@ -535,8 +535,8 @@ where
                 // Extract closest neighbor to element from the queue.
                 // Sort the working queue from furthest to nearest.
                 self.working_queue.sort_by(|a, b| {
-                    let distance_a_q = self.distance.calculate(base_element.value(), a.value);
-                    let distance_b_q = self.distance.calculate(base_element.value(), b.value);
+                    let distance_a_q = self.distance.calculate(base_element.value(), a.value());
+                    let distance_b_q = self.distance.calculate(base_element.value(), b.value());
                     let x = distance_a_q - distance_b_q;
 
                     if x < T::zero() {

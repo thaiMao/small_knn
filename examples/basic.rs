@@ -1,4 +1,4 @@
-use love_thy::{Distance, HNSW};
+use love_thy::{distance::Distance, HNSW};
 use std::ops::Deref;
 
 fn main() {

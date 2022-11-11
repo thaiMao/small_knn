@@ -20,7 +20,7 @@ impl<'a, const N: usize, const M: usize, T> SearchLayer<N, M, T>
 where
     T: Float + Sum + Debug,
 {
-    fn new(distance: Distance, capacity: usize) -> Self {
+    pub fn new(distance: Distance, capacity: usize) -> Self {
         Self {
             visited_elements: Vec::with_capacity(capacity),
             candidates: Vec::with_capacity(capacity),
@@ -28,9 +28,10 @@ where
             distance,
         }
     }
-    fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
+
+    pub fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
         &mut self,
-        query_element: &QueryElement<N, T>,
+        query_element: impl Node<N, M, T>,
         enter_points: &[EnterPoint<N, M, T>],
         layer: usize,
     ) -> &[EnterPoint<N, M, T>] {

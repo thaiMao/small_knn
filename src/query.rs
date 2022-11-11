@@ -9,7 +9,7 @@ pub struct QueryElement<const N: usize, T>
 where
     T: Float,
 {
-    value: [T; N],
+    pub value: [T; N],
 }
 
 impl<const N: usize, const M: usize, T> Node<N, M, T> for QueryElement<N, T>
@@ -75,7 +75,7 @@ impl<const N: usize, T> QueryElement<N, T>
 where
     T: Float + Sum + Clone + Copy + PartialOrd,
 {
-    fn new(value: [T; N]) -> Self {
+    pub fn new(value: [T; N]) -> Self {
         Self { value }
     }
 }

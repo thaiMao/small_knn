@@ -12,12 +12,15 @@ pub struct EnterPoint<const N: usize, const M: usize, T> {
     index: usize,
     layer: usize,
     value: [T; N],
-    connections: ArrayVec<Element, M>,
-    enter_point_index: usize,
+    pub connections: ArrayVec<Element, M>,
+    pub enter_point_index: usize,
 }
 
-impl<const N: usize, const M: usize, T> EnterPoint<N, M, T> {
-    fn new(value: [T; N], index: usize, layer: usize, enter_point_index: usize) -> Self {
+impl<const N: usize, const M: usize, T> EnterPoint<N, M, T>
+where
+    T: Float,
+{
+    pub fn new(value: [T; N], index: usize, layer: usize, enter_point_index: usize) -> Self {
         Self {
             index,
             layer,
@@ -31,6 +34,14 @@ impl<const N: usize, const M: usize, T> EnterPoint<N, M, T> {
         self.value
     }
 
+    pub fn get_index(&self) -> usize {
+        self.index
+    }
+
+    pub fn get_layer(&self) -> usize {
+        self.layer
+    }
+
     /// Returns connections for a given layer.
     pub fn neighbourhood(&self, layer: usize) -> impl Iterator<Item = Element> {
         self.connections
@@ -40,7 +51,7 @@ impl<const N: usize, const M: usize, T> EnterPoint<N, M, T> {
     }
 
     /// Return the number of connections for a given layer.
-    fn number_of_connections(&self, layer: usize) -> usize {
+    pub fn number_of_connections(&self, layer: usize) -> usize {
         self.connections
             .into_iter()
             .flatten()
