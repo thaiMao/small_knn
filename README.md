@@ -1,6 +1,6 @@
 # CI:
 
-[![CircleCI](https://circleci.com/gh/circleci/circleci-docs.svg?style=svg)](https://app.circleci.com/pipelines/github/thaiMao/love_thy)
+[![CircleCI](https://circleci.com/gh/thaiMao/love_thy.svg?style=svg)](https://app.circleci.com/pipelines/github/thaiMao/love_thy)
 
 Under active development - DO NOT USE.
 
