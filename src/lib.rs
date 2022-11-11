@@ -23,12 +23,17 @@ const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
 const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = false;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
-const M: usize = 64;
-const DEFAULT_MAX_CONNECTIONS: usize = 16;
 
+/// A reasonable range of M is from 5 to 48.
+const M: usize = 16;
+/// Simulations suggest that 2 * M is a good choice for M_MAX_ZERO
+/// The maximum connections that an element can have for the ground layer.
+const M_MAX_ZERO: usize = M * 2;
+const DEFAULT_MAX_CONNECTIONS: usize = 16;
+const EF_CONSTRUCTION: usize = 32;
 /// * `N` - Number of dimensions.
 #[derive(Clone, Debug)]
-pub struct HNSW<const EF_CONSTRUCTION: usize, const N: usize, T, Stage = Setup>
+pub struct HNSW<const N: usize, T, Stage = Setup>
 where
     T: Float + Sum + Debug,
 {
@@ -47,12 +52,12 @@ where
     distance: Distance,
     capacity: usize,
     nearest_elements: Vec<EnterPoint<N, M, T>>,
-    enter_point_key: usize,
+    enter_point: Option<EnterPoint<N, M, T>>,
     econn: Vec<EnterPoint<N, M, T>>,
     max_connections: usize,
 }
 
-impl<const EF_CONSTRUCTION: usize, const N: usize, T> Default for HNSW<EF_CONSTRUCTION, N, T, Setup>
+impl<const N: usize, T> Default for HNSW<N, T, Setup>
 where
     T: Float + Sum + Debug,
 {
@@ -75,14 +80,14 @@ where
             distance: DEFAULT_DISTANCE,
             capacity: DEFAULT_CAPACITY,
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
-            enter_point_key: 0,
+            enter_point: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
         }
     }
 }
 
-impl<const EF_CONSTRUCTION: usize, const N: usize, T> HNSW<EF_CONSTRUCTION, N, T, Setup>
+impl<const N: usize, T> HNSW<N, T, Setup>
 where
     T: Float + Sum + Debug,
 {
@@ -105,7 +110,7 @@ where
             distance,
             capacity: DEFAULT_CAPACITY,
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
-            enter_point_key: 0,
+            enter_point: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
         }
@@ -150,7 +155,7 @@ where
         self
     }
 
-    pub fn build(&mut self) -> HNSW<EF_CONSTRUCTION, N, T, Ready> {
+    pub fn build(&mut self) -> HNSW<N, T, Ready> {
         let enter_points = Vec::with_capacity(self.capacity);
         let found_nearest_neighbors = Vec::with_capacity(self.capacity);
         let working_queue = Vec::with_capacity(self.capacity);
@@ -161,7 +166,7 @@ where
 
         let rng = rand::thread_rng();
 
-        HNSW::<EF_CONSTRUCTION, N, T, Ready> {
+        HNSW::<N, T, Ready> {
             stage: PhantomData::<Ready>,
             enter_points,
             rng,
@@ -177,14 +182,14 @@ where
             distance: self.distance,
             capacity: self.capacity,
             nearest_elements,
-            enter_point_key: 0,
+            enter_point: None,
             econn,
             max_connections: self.max_connections,
         }
     }
 }
 
-impl<'a, const EF_CONSTRUCTION: usize, const N: usize, T> HNSW<EF_CONSTRUCTION, N, T, Ready>
+impl<const N: usize, T> HNSW<N, T, Ready>
 where
     T: Float + Sum + PartialEq + Debug + PartialOrd,
 {
@@ -199,7 +204,7 @@ where
         let query_element = QueryElement::new(*value);
 
         // Top layer for HNSW.
-        let top_layer_level = match self.enter_points.get(self.enter_point_key) {
+        let top_layer_level = match self.enter_point {
             Some(ep) => ep.get_layer(),
             None => 0,
         };
@@ -275,7 +280,9 @@ where
                             self.econn.push(enter_point);
                         });
 
-                    if e.number_of_connections(layer) > self.max_connections {
+                    if layer == 0 && e.number_of_connections(layer) > M_MAX_ZERO
+                        || e.number_of_connections(layer) > self.max_connections
+                    {
                         let new_econn = match self.neighbor_selection_algorithm {
                             NeighborSelectionAlgorithm::Simple => self
                                 .select_neighbors_simple::<M>(
@@ -307,15 +314,14 @@ where
             }
         }
 
-        if new_element_level > top_layer_level || top_layer_level == 0 {
+        if self.enter_point.is_none() || new_element_level > top_layer_level {
             // Set enter point for hnsw to query element.
-            self.enter_points.push(EnterPoint::new(
+            self.enter_point = Some(EnterPoint::new(
                 query_element.value,
                 index,
                 new_element_level,
                 enter_point_index,
             ));
-            self.enter_point_key = index;
         }
 
         self.econn.clear();
@@ -339,8 +345,8 @@ where
         Q: Deref + Deref<Target = [T; N]>,
         T: Num + PartialOrd,
     {
-        let enter_point = match self.enter_points.get(self.enter_point_key) {
-            Some(enter_point) => enter_point.clone(),
+        let mut enter_point = match self.enter_point {
+            Some(enter_point) => enter_point,
             None => return Err(()),
         };
         let query_element = QueryElement::new(*value);
@@ -352,8 +358,7 @@ where
                 self.search_layer
                     .search::<1>(query_element, &[enter_point.clone()], layer);
             self.nearest_elements.extend_from_slice(&closest_neighbor);
-            self.enter_points
-                .push(query_element.nearest(&self.nearest_elements, &self.distance));
+            enter_point = query_element.nearest(&self.nearest_elements, &self.distance);
         }
 
         let closest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(
@@ -569,7 +574,6 @@ mod knn_tests {
     use crate::distance::Distance;
     use std::ops::Deref;
 
-    const EF_CONSTRUCTION: usize = 4;
     const DIMENSIONS: usize = 2;
     const K: usize = 2;
 
@@ -592,7 +596,7 @@ mod knn_tests {
             }
         }
 
-        let mut knn = HNSW::<EF_CONSTRUCTION, DIMENSIONS, f32>::default()
+        let mut knn = HNSW::<DIMENSIONS, f32>::default()
             .set_distance(Distance::Euclidean)
             .build();
 
