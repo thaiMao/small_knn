@@ -225,15 +225,8 @@ where
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
         let new_element_level = cast::<T, usize>(new_element_level).unwrap();
 
-        let enter_point_index = self.enter_points.len();
-
         // Add bidirectional connections from neighbors to q at layer lc
-        let mut ep = EnterPoint::new(
-            query_element.value,
-            index,
-            new_element_level,
-            enter_point_index,
-        );
+        let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
         if self.enter_points.len() > 0 {
             for layer in top_layer_level..new_element_level + 1 {
@@ -278,18 +271,17 @@ where
                 for neighbor in neighbors.iter_mut() {
                     let overflow = neighbor
                         .connections
-                        .try_push(Element::new(enter_point_index, new_element_level));
+                        .try_push(Element::new(index, new_element_level));
 
-                    let overflow = ep.connections.try_push(Element::new(
-                        neighbor.enter_point_index,
-                        neighbor.get_layer(),
-                    ));
+                    let overflow = ep
+                        .connections
+                        .try_push(Element::new(neighbor.get_index(), neighbor.get_layer()));
                 }
 
                 for mut e in neighbors.iter().cloned() {
                     self.econn.clear();
                     e.neighbourhood(layer)
-                        .map(|element| self.enter_points.get(element.get_index()).unwrap())
+                        .map(|element| self.hnsw.get(&element.get_index()).unwrap())
                         .cloned()
                         .for_each(|enter_point| {
                             self.econn.push(enter_point);
@@ -317,7 +309,7 @@ where
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn.iter().map(|enter_point| {
-                            Element::new(enter_point.enter_point_index, enter_point.get_layer())
+                            Element::new(enter_point.get_index(), enter_point.get_layer())
                         }) {
                             e.connections.try_push(element);
                         }
@@ -496,7 +488,7 @@ where
             for e in self.found_nearest_neighbors.iter() {
                 for e_adjacent in e
                     .neighbourhood(layer)
-                    .map(|element| self.enter_points.get(element.get_index()).unwrap())
+                    .map(|element| self.hnsw.get(&element.get_index()).unwrap())
                 {
                     if self
                         .working_queue
@@ -535,7 +527,7 @@ where
                 < self
                     .neighbors
                     .iter()
-                    .map(|element| self.enter_points.get(element.get_index()).unwrap())
+                    .map(|element| self.hnsw.get(&element.get_index()).unwrap())
                     .map(|n| base_element.distance(n, &self.distance))
                     .reduce(T::min)
                     .unwrap_or(T::max_value())

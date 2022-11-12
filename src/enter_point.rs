@@ -13,20 +13,18 @@ pub struct EnterPoint<const N: usize, const M: usize, T> {
     layer: usize,
     value: [T; N],
     pub connections: ArrayVec<Element, M>,
-    pub enter_point_index: usize,
 }
 
 impl<const N: usize, const M: usize, T> EnterPoint<N, M, T>
 where
     T: Float,
 {
-    pub fn new(value: [T; N], index: usize, layer: usize, enter_point_index: usize) -> Self {
+    pub fn new(value: [T; N], index: usize, layer: usize) -> Self {
         Self {
             index,
             layer,
             value,
             connections: ArrayVec::new(),
-            enter_point_index,
         }
     }
 
