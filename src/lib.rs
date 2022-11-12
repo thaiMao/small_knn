@@ -30,8 +30,13 @@ const M: usize = 16;
 /// Simulations suggest that 2 * M is a good choice for M_MAX_ZERO
 /// The maximum connections that an element can have for the ground layer.
 const M_MAX_ZERO: usize = M * 2;
+// TODO - Set proper M_MAX
+const M_MAX: usize = M_MAX_ZERO;
 const DEFAULT_MAX_CONNECTIONS: usize = 16;
 const EF_CONSTRUCTION: usize = 32;
+
+/// Used in select neighbors simple and heuristic. - TODO Make local.
+const NUMBER_OF_NEIGHBORS_TO_RETURN: usize = 8;
 /// * `N` - Number of dimensions.
 #[derive(Clone, Debug)]
 pub struct HNSW<const N: usize, T, Stage = Setup>
@@ -44,7 +49,7 @@ where
     search_layer: SearchLayer<N, M, T>,
     found_nearest_neighbors: Vec<EnterPoint<N, M, T>>,
     working_queue: Vec<EnterPoint<N, M, T>>,
-    neighbors: Vec<EnterPoint<N, M, T>>,
+    neighbors: Vec<Option<usize>>,
     discarded_candidates: Vec<EnterPoint<N, M, T>>,
     normalization_factor: T,
     neighbor_selection_algorithm: NeighborSelectionAlgorithm,
@@ -225,11 +230,16 @@ where
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
         let new_element_level = cast::<T, usize>(new_element_level).unwrap();
 
-        // Add bidirectional connections from neighbors to q at layer lc
         let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
         if self.enter_points.len() > 0 {
-            for layer in top_layer_level..new_element_level + 1 {
+            let r = if top_layer_level >= new_element_level + 1 {
+                new_element_level + 1..top_layer_level
+            } else {
+                top_layer_level..new_element_level + 1
+            };
+            for layer in r {
+                debug_assert!(self.enter_points.len() == 1);
                 let nearest_element =
                     self.search_layer
                         .search::<1>(query_element, &self.enter_points[0..1], layer);
@@ -244,7 +254,7 @@ where
                 self.enter_points.push(nearest_element_to_query);
             }
 
-            for layer in top_layer_level.min(new_element_level)..0 {
+            for layer in (0..=top_layer_level.min(new_element_level)).rev() {
                 let found_nearest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(
                     query_element,
                     self.enter_points.as_slice(),
@@ -268,7 +278,10 @@ where
                     ),
                 };
 
-                for neighbor in neighbors.iter_mut() {
+                // Add bidirectional connections from neighbors to q at layer lc
+                for k in neighbors.iter().flatten() {
+                    let neighbor = self.hnsw.get_mut(k).unwrap();
+
                     let overflow = neighbor
                         .connections
                         .try_push(Element::new(index, new_element_level));
@@ -278,26 +291,28 @@ where
                         .try_push(Element::new(neighbor.get_index(), neighbor.get_layer()));
                 }
 
-                for mut e in neighbors.iter().cloned() {
+                for k in neighbors.iter().flatten() {
                     self.econn.clear();
+
+                    let e = self.hnsw.get(k).unwrap().clone();
+
+                    // Popuate self.econn which is used in select_neighbors methods
                     e.neighbourhood(layer)
-                        .map(|element| self.hnsw.get(&element.get_index()).unwrap())
-                        .cloned()
+                        .map(|element| self.hnsw.get(&element.get_index()).unwrap().clone())
                         .for_each(|enter_point| {
                             self.econn.push(enter_point);
                         });
 
-                    if layer == 0 && e.number_of_connections(layer) > M_MAX_ZERO
-                        || e.number_of_connections(layer) > self.max_connections
-                    {
+                    // TODO Split M_MAX_ZERO and M_MAX
+                    if layer == 0 && e.number_of_connections(layer) > M_MAX_ZERO {
                         let new_econn = match self.neighbor_selection_algorithm {
                             NeighborSelectionAlgorithm::Simple => self
-                                .select_neighbors_simple::<M>(
+                                .select_neighbors_simple::<M_MAX_ZERO>(
                                     e.clone(),
                                     Candidate::ElementConnections,
                                 ),
                             NeighborSelectionAlgorithm::Heuristic => self
-                                .select_neighbors_heuristic::<M>(
+                                .select_neighbors_heuristic::<M_MAX_ZERO>(
                                     e.clone(),
                                     Candidate::ElementConnections,
                                     layer,
@@ -306,16 +321,70 @@ where
                                 ),
                         };
 
+                        // Convert to array of elements.
+                        let mut new_econn_elements = [None; M_MAX_ZERO];
+
+                        for (i, e) in new_econn
+                            .iter()
+                            .flatten()
+                            .zip(new_econn_elements.iter_mut())
+                        {
+                            let ep = self.hnsw.get(i).unwrap().clone();
+
+                            *e = Some(Element::new(ep.get_index(), ep.get_layer()));
+                        }
+
+                        // Get enter point from hashmap, clear and replace connections with new_econn.
+                        let e = self.hnsw.get_mut(k).unwrap();
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
-                        for element in new_econn.iter().map(|enter_point| {
-                            Element::new(enter_point.get_index(), enter_point.get_layer())
-                        }) {
-                            e.connections.try_push(element);
+                        for element in new_econn_elements.iter().flatten().cloned() {
+                            let overflow = e.connections.try_push(element);
+                        }
+                    }
+
+                    if layer > 0 && e.number_of_connections(layer) > M_MAX {
+                        let new_econn = match self.neighbor_selection_algorithm {
+                            NeighborSelectionAlgorithm::Simple => self
+                                .select_neighbors_simple::<M_MAX>(
+                                    e.clone(),
+                                    Candidate::ElementConnections,
+                                ),
+                            NeighborSelectionAlgorithm::Heuristic => self
+                                .select_neighbors_heuristic::<M_MAX>(
+                                    e.clone(),
+                                    Candidate::ElementConnections,
+                                    layer,
+                                    self.extend_candidates,
+                                    self.keep_pruned_connections,
+                                ),
+                        };
+
+                        // Convert to array of elements.
+                        let mut new_econn_elements = [None; M_MAX];
+
+                        for (i, e) in new_econn
+                            .iter()
+                            .flatten()
+                            .zip(new_econn_elements.iter_mut())
+                        {
+                            let ep = self.hnsw.get(i).unwrap().clone();
+
+                            *e = Some(Element::new(ep.get_index(), ep.get_layer()));
+                        }
+
+                        // Get enter point from hashmap, clear and replace connections with new_econn.
+                        let e = self.hnsw.get_mut(k).unwrap();
+                        e.connections.clear();
+                        // Set neighbourhood(e) at layer lc to eNewConn
+                        for element in new_econn_elements.iter().flatten().cloned() {
+                            let overflow = e.connections.try_push(element);
                         }
                     }
                 }
+
                 // ep ← W
+                self.enter_points.clear();
                 self.enter_points
                     .extend_from_slice(&self.found_nearest_neighbors);
             }
@@ -350,20 +419,27 @@ where
         Q: Deref + Deref<Target = [T; N]>,
         T: Num + PartialOrd,
     {
+        // Get enter point for hnsw.
         let mut enter_point = match self.enter_point {
             Some(enter_point) => enter_point,
             None => return Err(()),
         };
         let query_element = QueryElement::new(*value);
         self.nearest_elements.clear();
+        // Top layer for hnsw.
         let level = enter_point.get_layer();
 
-        for layer in level..=1 {
+        for layer in (1..=level).rev() {
             let closest_neighbor =
                 self.search_layer
-                    .search::<1>(query_element, &[enter_point.clone()], layer);
+                    .search::<1>(query_element, &[enter_point], layer);
+            self.nearest_elements.clear();
             self.nearest_elements.extend_from_slice(&closest_neighbor);
-            enter_point = query_element.nearest(&self.nearest_elements, &self.distance);
+
+            let nearest = query_element.nearest(&self.nearest_elements, &self.distance);
+            enter_point = nearest;
+            self.enter_points.clear();
+            self.enter_points.extend_from_slice(&[nearest]);
         }
 
         let closest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(
@@ -371,6 +447,7 @@ where
             self.enter_points.as_slice(),
             0,
         );
+        //self.nearest_elements.clear();
         self.nearest_elements.extend_from_slice(&closest_neighbors);
 
         // Return nearest elements
@@ -403,16 +480,15 @@ where
     }
 
     // Algorithm 3 - Select neighbours simple
-    fn select_neighbors_simple<const NUMBER_OF_NEIGHBOURS_TO_RETURN: usize>(
+    fn select_neighbors_simple<const NUMBER_OF_NEIGHBORS_TO_RETURN: usize>(
         &mut self,
         base_element: impl Node<N, M, T>,
         candidate: Candidate,
-    ) -> [EnterPoint<N, M, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
+    ) -> [Option<usize>; NUMBER_OF_NEIGHBORS_TO_RETURN] {
         self.neighbors.clear();
 
         match candidate {
             Candidate::Neighbors => {
-                // Return nearest elements
                 // Sort elements by nearest to furthest order from query element.
                 self.found_nearest_neighbors.sort_by(|a, b| {
                     let distance_a_q = self.distance.calculate(base_element.value(), a.value());
@@ -428,15 +504,18 @@ where
                     }
                 });
 
-                if self.found_nearest_neighbors.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN {
-                    panic!("Not enough elements inserted");
+                for (n, e) in self
+                    .neighbors
+                    .iter_mut()
+                    .take(NUMBER_OF_NEIGHBORS_TO_RETURN)
+                    .zip(
+                        self.found_nearest_neighbors
+                            .iter()
+                            .take(NUMBER_OF_NEIGHBORS_TO_RETURN),
+                    )
+                {
+                    *n = Some(e.get_index());
                 }
-
-                for i in 0..NUMBER_OF_NEIGHBOURS_TO_RETURN {
-                    self.neighbors.push(self.found_nearest_neighbors[i]);
-                }
-
-                self.neighbors.clone().try_into().unwrap()
             }
             Candidate::ElementConnections => {
                 // Return nearest elements
@@ -455,27 +534,36 @@ where
                     }
                 });
 
-                if self.econn.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN {
-                    panic!("Not enough elements inserted");
+                for (n, e) in self
+                    .neighbors
+                    .iter_mut()
+                    .take(NUMBER_OF_NEIGHBORS_TO_RETURN)
+                    .zip(self.econn.iter().take(NUMBER_OF_NEIGHBORS_TO_RETURN))
+                {
+                    *n = Some(e.get_index());
                 }
-
-                for i in 0..NUMBER_OF_NEIGHBOURS_TO_RETURN {
-                    self.neighbors.push(self.econn[i]);
-                }
-
-                self.neighbors.clone().try_into().unwrap()
             }
         }
+
+        let mut output = [None; NUMBER_OF_NEIGHBORS_TO_RETURN];
+
+        if self.neighbors.len() < NUMBER_OF_NEIGHBORS_TO_RETURN {
+            output.copy_from_slice(self.neighbors.as_slice());
+        } else {
+            output.copy_from_slice(&self.neighbors[..NUMBER_OF_NEIGHBORS_TO_RETURN]);
+        };
+
+        output
     }
     // Algorithm 4 - Select neighbours heuristic
-    fn select_neighbors_heuristic<const NUMBER_OF_NEIGHBOURS_TO_RETURN: usize>(
+    fn select_neighbors_heuristic<const NUMBER_OF_NEIGHBORS_TO_RETURN: usize>(
         &mut self,
         base_element: impl Node<N, M, T>,
         candidate: Candidate,
         layer: usize,
         extend_candidates: bool,
         keep_pruned_connections: bool,
-    ) -> [EnterPoint<N, M, T>; NUMBER_OF_NEIGHBOURS_TO_RETURN] {
+    ) -> [Option<usize>; NUMBER_OF_NEIGHBORS_TO_RETURN] {
         let candidate_elements = match candidate {
             Candidate::ElementConnections => self.econn.as_slice(),
             Candidate::Neighbors => self.found_nearest_neighbors.as_slice(),
@@ -496,7 +584,7 @@ where
                         .find(|w| w.get_index() == e_adjacent.get_index())
                         .is_none()
                     {
-                        self.working_queue.push(e_adjacent.clone());
+                        self.working_queue.push(*e_adjacent);
                     }
                 }
             }
@@ -504,8 +592,7 @@ where
 
         self.discarded_candidates.clear();
 
-        while self.working_queue.len() > 0 && self.neighbors.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN
-        {
+        while self.working_queue.len() > 0 && self.neighbors.len() < NUMBER_OF_NEIGHBORS_TO_RETURN {
             // Extract closest neighbor to element from the queue.
             // Sort the working queue from furthest to nearest.
             self.working_queue.sort_by(|a, b| {
@@ -521,18 +608,21 @@ where
                     Ordering::Less
                 }
             });
+            // Extract nearest element from working queue.
             let nearest = self.working_queue.pop().unwrap();
 
+            // If nearest element is closer to base element compared to any element from self.neighbors
             if base_element.distance(&nearest, &self.distance)
                 < self
                     .neighbors
                     .iter()
-                    .map(|element| self.hnsw.get(&element.get_index()).unwrap())
+                    .flatten()
+                    .map(|k| self.hnsw.get(k).unwrap())
                     .map(|n| base_element.distance(n, &self.distance))
                     .reduce(T::min)
                     .unwrap_or(T::max_value())
             {
-                self.neighbors.push(nearest);
+                self.neighbors.push(Some(nearest.get_index()));
             } else {
                 self.discarded_candidates.push(nearest);
             }
@@ -540,7 +630,7 @@ where
 
         if keep_pruned_connections {
             while self.discarded_candidates.len() > 0
-                && self.neighbors.len() < NUMBER_OF_NEIGHBOURS_TO_RETURN
+                && self.neighbors.len() < NUMBER_OF_NEIGHBORS_TO_RETURN
             {
                 // Extract closest neighbor to element from the queue.
                 // Sort the working queue from furthest to nearest.
@@ -559,10 +649,20 @@ where
                 });
                 let nearest = self.working_queue.pop().unwrap();
 
-                self.neighbors.push(nearest);
+                self.neighbors.push(Some(nearest.get_index()));
             }
         }
-        self.neighbors.clone().try_into().unwrap()
+
+        let mut output = [None; NUMBER_OF_NEIGHBORS_TO_RETURN];
+
+        if self.neighbors.len() < NUMBER_OF_NEIGHBORS_TO_RETURN {
+            let (a, _) = output.split_at_mut(self.neighbors.len());
+            a.copy_from_slice(&self.neighbors[..self.neighbors.len()]);
+        } else {
+            output.copy_from_slice(&self.neighbors[..NUMBER_OF_NEIGHBORS_TO_RETURN])
+        }
+
+        output
     }
     // Algorithm 2 - Search layer
 }
