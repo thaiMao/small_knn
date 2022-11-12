@@ -203,6 +203,11 @@ where
         self.found_nearest_neighbors.clear();
         let query_element = QueryElement::new(*value);
 
+        // Get enter point for HNSW.
+        self.enter_points.clear();
+        if let Some(enter_point) = self.enter_point {
+            self.enter_points.push(enter_point);
+        }
         // Top layer for HNSW.
         let top_layer_level = match self.enter_point {
             Some(ep) => ep.get_layer(),
@@ -216,18 +221,27 @@ where
 
         let enter_point_index = self.enter_points.len();
 
+        // Add bidirectional connections from neighbors to q at layer lc
+        let mut ep = EnterPoint::new(
+            query_element.value,
+            index,
+            new_element_level,
+            enter_point_index,
+        );
+
         if self.enter_points.len() > 0 {
             for layer in top_layer_level..new_element_level + 1 {
-                let nearest_elements = self.search_layer.search::<1>(
-                    query_element,
-                    self.enter_points.as_slice(),
-                    layer,
-                );
+                let nearest_element =
+                    self.search_layer
+                        .search::<1>(query_element, &self.enter_points[0..1], layer);
+
+                self.found_nearest_neighbors.clear();
                 self.found_nearest_neighbors
-                    .extend_from_slice(&nearest_elements);
+                    .extend_from_slice(&nearest_element);
 
                 let nearest_element_to_query =
                     query_element.nearest(self.found_nearest_neighbors.as_slice(), &self.distance);
+                self.enter_points.clear();
                 self.enter_points.push(nearest_element_to_query);
             }
 
@@ -238,6 +252,7 @@ where
                     layer,
                 );
 
+                self.found_nearest_neighbors.clear();
                 self.found_nearest_neighbors
                     .extend_from_slice(&found_nearest_neighbors);
 
@@ -254,21 +269,15 @@ where
                     ),
                 };
 
-                // Add bidirectional connections from neighbors to q at layer lc
-                //let mut ep = EnterPoint::new(
-                //    query_element.value,
-                //    index,
-                //    new_element_level,
-                //    enter_point_index,
-                //);
                 for neighbor in neighbors.iter_mut() {
-                    neighbor
+                    let overflow = neighbor
                         .connections
                         .try_push(Element::new(enter_point_index, new_element_level));
 
-                    //let overflow = ep
-                    //    .connections
-                    //    .try_push(Element::new(neighbor.enter_point_index, neighbor.layer));
+                    let overflow = ep.connections.try_push(Element::new(
+                        neighbor.enter_point_index,
+                        neighbor.get_layer(),
+                    ));
                 }
 
                 for mut e in neighbors.iter().cloned() {
@@ -316,12 +325,7 @@ where
 
         if self.enter_point.is_none() || new_element_level > top_layer_level {
             // Set enter point for hnsw to query element.
-            self.enter_point = Some(EnterPoint::new(
-                query_element.value,
-                index,
-                new_element_level,
-                enter_point_index,
-            ));
+            self.enter_point = Some(ep);
         }
 
         self.econn.clear();
