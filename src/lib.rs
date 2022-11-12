@@ -5,6 +5,7 @@ use crate::query::{Element, QueryElement};
 use num::{cast, Float, Num};
 use rand::prelude::*;
 use search_layer::SearchLayer;
+use std::collections::HashMap;
 use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref};
 
 mod array_vec;
@@ -55,6 +56,7 @@ where
     enter_point: Option<EnterPoint<N, M, T>>,
     econn: Vec<EnterPoint<N, M, T>>,
     max_connections: usize,
+    hnsw: HashMap<usize, EnterPoint<N, M, T>>,
 }
 
 impl<const N: usize, T> Default for HNSW<N, T, Setup>
@@ -83,6 +85,7 @@ where
             enter_point: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
+            hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
         }
     }
 }
@@ -113,6 +116,7 @@ where
             enter_point: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
+            hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
         }
     }
 
@@ -163,6 +167,7 @@ where
         let discarded_candidates = Vec::with_capacity(self.capacity);
         let nearest_elements = Vec::with_capacity(self.capacity);
         let econn = Vec::with_capacity(self.capacity);
+        let hnsw = HashMap::with_capacity(self.capacity);
 
         let rng = rand::thread_rng();
 
@@ -185,6 +190,7 @@ where
             enter_point: None,
             econn,
             max_connections: self.max_connections,
+            hnsw,
         }
     }
 }
@@ -327,6 +333,9 @@ where
             // Set enter point for hnsw to query element.
             self.enter_point = Some(ep);
         }
+
+        // Update HNSW inserting element q.
+        self.hnsw.insert(index, ep);
 
         self.econn.clear();
         self.neighbors.clear();
