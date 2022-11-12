@@ -22,9 +22,7 @@ where
     pub fn try_push(&mut self, element: T) -> Result<(), ()> {
         match self.inner.get_mut(self.index) {
             Some(e) => {
-                if let Some(e) = e {
-                    *e = element;
-                }
+                *e = Some(element);
                 self.index += 1;
                 Ok(())
             }

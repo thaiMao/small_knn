@@ -709,7 +709,7 @@ mod knn_tests {
         knn.insert(1, MyNode { value: [2.0, 2.0] });
         knn.insert(2, MyNode { value: [10.0, 5.0] });
         knn.insert(
-            4,
+            3,
             MyNode {
                 value: [11.0, 15.0],
             },
