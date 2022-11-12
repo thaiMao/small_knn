@@ -240,9 +240,12 @@ where
             };
             for layer in r {
                 debug_assert!(self.enter_points.len() == 1);
-                let nearest_element =
-                    self.search_layer
-                        .search::<1>(query_element, &self.enter_points[0..1], layer);
+                let nearest_element = self.search_layer.search::<1>(
+                    query_element,
+                    &self.enter_points[0..1],
+                    layer,
+                    &self.hnsw,
+                );
 
                 self.found_nearest_neighbors.clear();
                 self.found_nearest_neighbors
@@ -259,6 +262,7 @@ where
                     query_element,
                     self.enter_points.as_slice(),
                     layer,
+                    &self.hnsw,
                 );
 
                 self.found_nearest_neighbors.clear();
@@ -291,6 +295,9 @@ where
                         .try_push(Element::new(neighbor.get_index(), neighbor.get_layer()));
                 }
 
+                // Update HNSW inserting element q.
+                self.hnsw.insert(index, ep);
+
                 for k in neighbors.iter().flatten() {
                     self.econn.clear();
 
@@ -298,7 +305,11 @@ where
 
                     // Popuate self.econn which is used in select_neighbors methods
                     e.neighbourhood(layer)
-                        .map(|element| self.hnsw.get(&element.get_index()).unwrap().clone())
+                        .map(|element| {
+                            let key = &element.get_index();
+
+                            self.hnsw.get(&key).unwrap().clone()
+                        })
                         .for_each(|enter_point| {
                             self.econn.push(enter_point);
                         });
@@ -388,15 +399,15 @@ where
                 self.enter_points
                     .extend_from_slice(&self.found_nearest_neighbors);
             }
+        } else {
+            // Update HNSW inserting element q.
+            self.hnsw.insert(index, ep);
         }
 
         if self.enter_point.is_none() || new_element_level > top_layer_level {
             // Set enter point for hnsw to query element.
             self.enter_point = Some(ep);
         }
-
-        // Update HNSW inserting element q.
-        self.hnsw.insert(index, ep);
 
         self.econn.clear();
         self.neighbors.clear();
@@ -432,7 +443,7 @@ where
         for layer in (1..=level).rev() {
             let closest_neighbor =
                 self.search_layer
-                    .search::<1>(query_element, &[enter_point], layer);
+                    .search::<1>(query_element, &[enter_point], layer, &self.hnsw);
             self.nearest_elements.clear();
             self.nearest_elements.extend_from_slice(&closest_neighbor);
 
@@ -446,8 +457,9 @@ where
             query_element,
             self.enter_points.as_slice(),
             0,
+            &self.hnsw,
         );
-        //self.nearest_elements.clear();
+        self.nearest_elements.clear();
         self.nearest_elements.extend_from_slice(&closest_neighbors);
 
         // Return nearest elements

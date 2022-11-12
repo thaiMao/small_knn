@@ -3,7 +3,7 @@ use crate::enter_point::EnterPoint;
 use crate::node::Node;
 use crate::query::QueryElement;
 use num::Float;
-use std::{cmp::Ordering, fmt::Debug, iter::Sum};
+use std::{cmp::Ordering, collections::HashMap, fmt::Debug, iter::Sum};
 
 #[derive(Clone, Debug)]
 pub struct SearchLayer<const N: usize, const M: usize, T>
@@ -34,6 +34,7 @@ where
         query_element: impl Node<N, M, T>,
         enter_points: &[EnterPoint<N, M, T>],
         layer: usize,
+        hnsw: &HashMap<usize, EnterPoint<N, M, T>>,
     ) -> &[EnterPoint<N, M, T>] {
         // v ← ep // set of visited elements
         self.visited_elements.clear();
@@ -81,7 +82,7 @@ where
 
             for e in nearest
                 .neighbourhood(layer)
-                .map(|element| enter_points.get(element.get_index()).unwrap())
+                .map(|element| hnsw.get(&element.get_index()).unwrap())
                 .cloned()
             {
                 // Update C and W
