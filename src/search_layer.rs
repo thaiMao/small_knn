@@ -69,7 +69,7 @@ where
                 }
             });
             let nearest = self.candidates.pop().unwrap();
-
+            println!("nearest: {:#?}", nearest);
             let furthest =
                 query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
 
@@ -85,6 +85,7 @@ where
                 .map(|element| hnsw.get(&element.get_index()).unwrap())
                 .cloned()
             {
+                println!("e: {:#?}", e);
                 // Update C and W
                 if self.visited_elements.iter().find(|&v| v == &e).is_none() {
                     self.visited_elements.push(e.clone());
@@ -92,7 +93,9 @@ where
                         query_element.furthest(&self.found_nearest_neighbors, &self.distance);
 
                     if query_element.distance(&e, &self.distance)
-                        > query_element.distance(&furthest, &self.distance)
+                        < query_element.distance(&furthest, &self.distance)
+                        || self.found_nearest_neighbors.len()
+                            < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
                     {
                         self.candidates.push(e.clone());
                         self.found_nearest_neighbors.push(e);
@@ -100,16 +103,90 @@ where
                             > NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
                         {
                             // Remove furthest element from W to q
+                            // Sort from nearest to furthest.
+                            self.found_nearest_neighbors.sort_by(|a, b| {
+                                let distance_a_q = self
+                                    .distance
+                                    .calculate(query_element.value(), a.get_value());
+                                let distance_b_q = self
+                                    .distance
+                                    .calculate(query_element.value(), b.get_value());
+                                let x = distance_a_q - distance_b_q;
+
+                                if x < T::zero() {
+                                    Ordering::Less
+                                } else if x == T::zero() {
+                                    Ordering::Equal
+                                } else {
+                                    Ordering::Greater
+                                }
+                            });
+                            // Remove furthest element.
+                            self.found_nearest_neighbors.pop();
                         }
                     }
                 }
             }
         }
 
+        println!(
+            "found_nearest_neighbours: {:#?}",
+            self.found_nearest_neighbors
+        );
+
         if self.found_nearest_neighbors.len() < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN {
             &self.found_nearest_neighbors
         } else {
             &self.found_nearest_neighbors[..NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN]
         }
+    }
+}
+
+#[cfg(test)]
+mod search_layer_test {
+    use std::collections::HashMap;
+
+    use super::SearchLayer;
+    use crate::query::Element;
+    use crate::{enter_point::EnterPoint, query::QueryElement};
+
+    #[test]
+    fn test_search_layer() {
+        let capacity = 1024;
+        let distance = crate::distance::Distance::Euclidean;
+        let mut search_layer = SearchLayer::<2, 16, f32>::new(distance, capacity);
+        let query_element = QueryElement { value: [2.1, 2.1] };
+        let mut enter_point = EnterPoint::new([11.0, 15.0], 3, 3);
+        let _ = enter_point.connections.try_push(Element::new(1, 1));
+        let _ = enter_point.connections.try_push(Element::new(2, 0));
+        let enter_points = vec![enter_point];
+        let layer = 1;
+        let mut hnsw = HashMap::new();
+
+        let mut ep = EnterPoint::new([1.0, 1.0], 0, 1);
+        let _ = ep.connections.try_push(Element::new(1, 1));
+        let _ = ep.connections.try_push(Element::new(1, 0));
+        hnsw.insert(0, ep);
+
+        let mut ep = EnterPoint::new([10.0, 5.0], 2, 0);
+        let _ = ep.connections.try_push(Element::new(1, 0));
+        let _ = ep.connections.try_push(Element::new(3, 0));
+        hnsw.insert(2, ep);
+
+        let mut ep = EnterPoint::new([11.0, 15.0], 3, 3);
+        let _ = ep.connections.try_push(Element::new(1, 1));
+        let _ = ep.connections.try_push(Element::new(2, 0));
+        hnsw.insert(3, ep);
+
+        let mut ep = EnterPoint::new([2.0, 2.0], 1, 1);
+        let _ = ep.connections.try_push(Element::new(0, 1));
+        let _ = ep.connections.try_push(Element::new(0, 0));
+        let _ = ep.connections.try_push(Element::new(2, 0));
+        let _ = ep.connections.try_push(Element::new(3, 1));
+        hnsw.insert(1, ep);
+
+        let output = search_layer.search::<1>(query_element, enter_points.as_slice(), layer, &hnsw);
+
+        assert_eq!(output, &[ep]);
     }
 }

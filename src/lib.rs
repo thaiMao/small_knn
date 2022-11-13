@@ -20,7 +20,7 @@ pub struct Ready;
 const DEFAULT_CAPACITY: usize = 128;
 const DEFAULT_NORMALIZATION_FACTOR: f32 = 2.0;
 const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
-    NeighborSelectionAlgorithm::Heuristic;
+    NeighborSelectionAlgorithm::Simple;
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
 const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = false;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
@@ -58,7 +58,7 @@ where
     distance: Distance,
     capacity: usize,
     nearest_elements: Vec<EnterPoint<N, M, T>>,
-    enter_point: Option<EnterPoint<N, M, T>>,
+    enter_point_index: Option<usize>,
     econn: Vec<EnterPoint<N, M, T>>,
     max_connections: usize,
     hnsw: HashMap<usize, EnterPoint<N, M, T>>,
@@ -87,7 +87,7 @@ where
             distance: DEFAULT_DISTANCE,
             capacity: DEFAULT_CAPACITY,
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
-            enter_point: None,
+            enter_point_index: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
             hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
@@ -118,7 +118,7 @@ where
             distance,
             capacity: DEFAULT_CAPACITY,
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
-            enter_point: None,
+            enter_point_index: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
             max_connections: DEFAULT_MAX_CONNECTIONS,
             hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
@@ -192,7 +192,7 @@ where
             distance: self.distance,
             capacity: self.capacity,
             nearest_elements,
-            enter_point: None,
+            enter_point_index: None,
             econn,
             max_connections: self.max_connections,
             hnsw,
@@ -216,11 +216,12 @@ where
 
         // Get enter point for HNSW.
         self.enter_points.clear();
-        if let Some(enter_point) = self.enter_point {
-            self.enter_points.push(enter_point);
-        }
+        let enter_point = match self.enter_point_index {
+            Some(index) => self.hnsw.get(&index),
+            None => None,
+        };
         // Top layer for HNSW.
-        let top_layer_level = match self.enter_point {
+        let top_layer_level = match enter_point {
             Some(ep) => ep.get_layer(),
             None => 0,
         };
@@ -232,17 +233,18 @@ where
 
         let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
-        if self.enter_points.len() > 0 {
+        if self.enter_point_index.is_some() {
+            let mut enter_point = enter_point.unwrap().clone();
             let r = if top_layer_level >= new_element_level + 1 {
-                new_element_level + 1..top_layer_level
+                new_element_level + 1..=top_layer_level
             } else {
-                top_layer_level..new_element_level + 1
+                top_layer_level..=new_element_level + 1
             };
-            for layer in r {
-                debug_assert!(self.enter_points.len() == 1);
+            for layer in r.rev() {
+                //debug_assert!(self.enter_points.len() == 1);
                 let nearest_element = self.search_layer.search::<1>(
                     query_element,
-                    &self.enter_points[0..1],
+                    &[enter_point.clone()],
                     layer,
                     &self.hnsw,
                 );
@@ -253,6 +255,7 @@ where
 
                 let nearest_element_to_query =
                     query_element.nearest(self.found_nearest_neighbors.as_slice(), &self.distance);
+                enter_point = nearest_element_to_query;
                 self.enter_points.clear();
                 self.enter_points.push(nearest_element_to_query);
             }
@@ -269,7 +272,7 @@ where
                 self.found_nearest_neighbors
                     .extend_from_slice(&found_nearest_neighbors);
 
-                let mut neighbors = match self.neighbor_selection_algorithm {
+                let neighbors = match self.neighbor_selection_algorithm {
                     NeighborSelectionAlgorithm::Simple => {
                         self.select_neighbors_simple::<M>(query_element, Candidate::Neighbors)
                     }
@@ -286,13 +289,11 @@ where
                 for k in neighbors.iter().flatten() {
                     let neighbor = self.hnsw.get_mut(k).unwrap();
 
-                    let overflow = neighbor
-                        .connections
-                        .try_push(Element::new(index, new_element_level));
+                    let overflow = neighbor.connections.try_push(Element::new(index, layer));
 
                     let overflow = ep
                         .connections
-                        .try_push(Element::new(neighbor.get_index(), neighbor.get_layer()));
+                        .try_push(Element::new(neighbor.get_index(), layer));
                 }
 
                 // Update HNSW inserting element q.
@@ -342,7 +343,7 @@ where
                         {
                             let ep = self.hnsw.get(i).unwrap().clone();
 
-                            *e = Some(Element::new(ep.get_index(), ep.get_layer()));
+                            *e = Some(Element::new(ep.get_index(), layer));
                         }
 
                         // Get enter point from hashmap, clear and replace connections with new_econn.
@@ -381,7 +382,7 @@ where
                         {
                             let ep = self.hnsw.get(i).unwrap().clone();
 
-                            *e = Some(Element::new(ep.get_index(), ep.get_layer()));
+                            *e = Some(Element::new(ep.get_index(), layer));
                         }
 
                         // Get enter point from hashmap, clear and replace connections with new_econn.
@@ -404,9 +405,9 @@ where
             self.hnsw.insert(index, ep);
         }
 
-        if self.enter_point.is_none() || new_element_level > top_layer_level {
+        if self.enter_point_index.is_none() || new_element_level > top_layer_level {
             // Set enter point for hnsw to query element.
-            self.enter_point = Some(ep);
+            self.enter_point_index = Some(index);
         }
 
         self.econn.clear();
@@ -431,12 +432,12 @@ where
         T: Num + PartialOrd,
     {
         // Get enter point for hnsw.
-        let mut enter_point = match self.enter_point {
-            Some(enter_point) => enter_point,
+        let mut enter_point = match self.enter_point_index {
+            Some(index) => self.hnsw.get(&index).unwrap().clone(),
             None => return Err(()),
         };
         let query_element = QueryElement::new(*value);
-        self.nearest_elements.clear();
+        //self.nearest_elements.clear();
         // Top layer for hnsw.
         let level = enter_point.get_layer();
 
@@ -444,9 +445,10 @@ where
             let closest_neighbor =
                 self.search_layer
                     .search::<1>(query_element, &[enter_point], layer, &self.hnsw);
-            self.nearest_elements.clear();
+            //self.nearest_elements.clear();
             self.nearest_elements.extend_from_slice(&closest_neighbor);
 
+            // Get nearest element from W to q.
             let nearest = query_element.nearest(&self.nearest_elements, &self.distance);
             enter_point = nearest;
             self.enter_points.clear();
@@ -478,6 +480,8 @@ where
             }
         });
 
+        println!("{:#?}", self.nearest_elements);
+        println!("{:#?}", self.hnsw);
         if self.nearest_elements.len() < K {
             panic!("Not enough elements inserted");
         }

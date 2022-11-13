@@ -21,11 +21,11 @@ where
     // TODO Introduce proper error handling.
     pub fn try_push(&mut self, element: T) -> Result<(), ()> {
         // Check if element already exists.
-        let duplicate = self.inner.iter().flatten().any(|c| *c == element);
+        //let duplicate = self.inner.iter().flatten().any(|c| *c == element);
 
-        if duplicate {
-            return Err(());
-        }
+        //if duplicate {
+        //    return Err(());
+        //}
         match self.inner.get_mut(self.index) {
             Some(e) => {
                 *e = Some(element);
