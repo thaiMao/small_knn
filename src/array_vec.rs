@@ -9,7 +9,7 @@ where
 
 impl<T, const CAP: usize> ArrayVec<T, CAP>
 where
-    T: Copy + Clone,
+    T: Copy + Clone + PartialEq,
 {
     pub fn new() -> Self {
         Self {
@@ -20,6 +20,12 @@ where
 
     // TODO Introduce proper error handling.
     pub fn try_push(&mut self, element: T) -> Result<(), ()> {
+        // Check if element already exists.
+        let duplicate = self.inner.iter().flatten().any(|c| *c == element);
+
+        if duplicate {
+            return Err(());
+        }
         match self.inner.get_mut(self.index) {
             Some(e) => {
                 *e = Some(element);
