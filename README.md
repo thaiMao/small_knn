@@ -58,10 +58,9 @@ assert_eq!(neighbors.unwrap(), [1, 0]);
 ## Design goals
 
 The goal is to carry out a similarity search for a fixed number K of nearest
-neighbors for a given query without incurring additional heap memory
-allocations while searching. Any type can be inserted provided it implements
-the `Deref` trait and its underlying value is of a fixed size known at compile
-time.
+neighbors for a given query without incurring additional allocations while
+searching. Any type can be inserted provided it implements the `Deref` trait
+and its underlying value is of a fixed size known at compile time.
 
 ## Documentation
 
