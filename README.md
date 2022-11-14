@@ -15,7 +15,7 @@ struct MyStruct<const N: usize, T> where T: Clone + Copy, {
 }
 ```
 
-- Implement Deref.
+- Implement `Deref` trait.
 
 ```rust
 impl<const N: usize, T> Deref for MyStruct<N, T>
