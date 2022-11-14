@@ -1,8 +1,6 @@
 # Small KNN
 
-[![CircleCI](https://circleci.com/gh/thaiMao/love_thy.svg?style=svg)](https://app.circleci.com/pipelines/github/thaiMao/love_thy)
-
-Under active development - DO NOT USE.
+[![CircleCI](https://circleci.com/gh/thaiMao/small_knn.svg?style=shield)](https://app.circleci.com/pipelines/github/thaiMao/small_knn)
 
 This library is an approximate K-nearest neighbor search based on navigable small world
 graphs (https://arxiv.org/pdf/1603.09320.pdf) written in Rust.
