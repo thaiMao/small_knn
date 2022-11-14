@@ -708,9 +708,7 @@ where
                     Some(nearest) => {
                         self.neighbors.push(Some(nearest.get_index()));
                     }
-                    None => {
-                        panic!("Not enough elements in working queue.");
-                    }
+                    None => {}
                 };
             }
         }
