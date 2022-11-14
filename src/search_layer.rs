@@ -67,59 +67,62 @@ where
                     Ordering::Less
                 }
             });
-            let nearest = self.candidates.pop().unwrap();
-            let furthest =
-                query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
 
-            if query_element.distance(&nearest, &self.distance)
-                > query_element.distance(&furthest, &self.distance)
-            {
-                // All elements in W are evaluated
-                break;
-            }
+            if let Some(nearest) = self.candidates.pop() {
+                let furthest =
+                    query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
 
-            for e in nearest
-                .neighbourhood(layer)
-                .map(|element| hnsw.get(&element.get_index()).unwrap())
-                .cloned()
-            {
-                // Update C and W
-                if self.visited_elements.iter().find(|&v| v == &e).is_none() {
-                    self.visited_elements.push(e.clone());
-                    let furthest =
-                        query_element.furthest(&self.found_nearest_neighbors, &self.distance);
+                if query_element.distance(&nearest, &self.distance)
+                    > query_element.distance(&furthest, &self.distance)
+                {
+                    // All elements in W are evaluated
+                    break;
+                }
 
-                    if query_element.distance(&e, &self.distance)
-                        < query_element.distance(&furthest, &self.distance)
-                        || self.found_nearest_neighbors.len()
-                            < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
-                    {
-                        self.candidates.push(e.clone());
-                        self.found_nearest_neighbors.push(e);
-                        if self.found_nearest_neighbors.len()
-                            > NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
+                for e in nearest
+                    .neighbourhood(layer)
+                    .map(|element| hnsw.get(&element.get_index()))
+                    .flatten()
+                    .cloned()
+                {
+                    // Update C and W
+                    if self.visited_elements.iter().find(|&v| v == &e).is_none() {
+                        self.visited_elements.push(e.clone());
+                        let furthest =
+                            query_element.furthest(&self.found_nearest_neighbors, &self.distance);
+
+                        if query_element.distance(&e, &self.distance)
+                            < query_element.distance(&furthest, &self.distance)
+                            || self.found_nearest_neighbors.len()
+                                < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
                         {
-                            // Remove furthest element from W to q
-                            // Sort from nearest to furthest.
-                            self.found_nearest_neighbors.sort_by(|a, b| {
-                                let distance_a_q = self
-                                    .distance
-                                    .calculate(query_element.value(), a.get_value());
-                                let distance_b_q = self
-                                    .distance
-                                    .calculate(query_element.value(), b.get_value());
-                                let x = distance_a_q - distance_b_q;
+                            self.candidates.push(e.clone());
+                            self.found_nearest_neighbors.push(e);
+                            if self.found_nearest_neighbors.len()
+                                > NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
+                            {
+                                // Remove furthest element from W to q
+                                // Sort from nearest to furthest.
+                                self.found_nearest_neighbors.sort_by(|a, b| {
+                                    let distance_a_q = self
+                                        .distance
+                                        .calculate(query_element.value(), a.get_value());
+                                    let distance_b_q = self
+                                        .distance
+                                        .calculate(query_element.value(), b.get_value());
+                                    let x = distance_a_q - distance_b_q;
 
-                                if x < T::zero() {
-                                    Ordering::Less
-                                } else if x == T::zero() {
-                                    Ordering::Equal
-                                } else {
-                                    Ordering::Greater
-                                }
-                            });
-                            // Remove furthest element.
-                            self.found_nearest_neighbors.pop();
+                                    if x < T::zero() {
+                                        Ordering::Less
+                                    } else if x == T::zero() {
+                                        Ordering::Equal
+                                    } else {
+                                        Ordering::Greater
+                                    }
+                                });
+                                // Remove furthest element.
+                                self.found_nearest_neighbors.pop();
+                            }
                         }
                     }
                 }
