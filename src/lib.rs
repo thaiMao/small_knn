@@ -289,7 +289,12 @@ where
 
                 // Add bidirectional connections from neighbors to q at layer lc
                 for k in neighbors.iter().flatten() {
-                    let neighbor = self.hnsw.get_mut(k).unwrap();
+                    let neighbor = match self.hnsw.get_mut(k) {
+                        Some(n) => n,
+                        None => {
+                            return Err(());
+                        }
+                    };
 
                     let overflow = neighbor.connections.try_push(Element::new(index, layer));
 
@@ -304,17 +309,21 @@ where
                 for k in neighbors.iter().flatten() {
                     self.econn.clear();
 
-                    let e = self.hnsw.get(k).unwrap().clone();
+                    let e = match self.hnsw.get(k) {
+                        Some(e) => e.clone(),
+                        None => return Err(()),
+                    };
 
                     // Popuate self.econn which is used in select_neighbors methods
                     e.neighbourhood(layer)
                         .map(|element| {
                             let key = &element.get_index();
 
-                            self.hnsw.get(&key).unwrap().clone()
+                            self.hnsw.get(&key)
                         })
+                        .flatten()
                         .for_each(|enter_point| {
-                            self.econn.push(enter_point);
+                            self.econn.push(enter_point.clone());
                         });
 
                     // TODO Split M_MAX_ZERO and M_MAX
