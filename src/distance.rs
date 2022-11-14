@@ -8,7 +8,7 @@ pub enum Distance {
 }
 
 impl Distance {
-    /// * `N` - N-space
+    /// * `N` - N dimensional space
     pub fn calculate<const N: usize, T>(&self, q: [T; N], p: [T; N]) -> T
     where
         T: Float + Sum + Clone + Copy,

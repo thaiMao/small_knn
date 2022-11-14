@@ -1,7 +1,6 @@
 use crate::distance::Distance;
 use crate::enter_point::EnterPoint;
 use crate::node::Node;
-use crate::query::QueryElement;
 use num::Float;
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug, iter::Sum};
 
@@ -69,7 +68,6 @@ where
                 }
             });
             let nearest = self.candidates.pop().unwrap();
-            println!("nearest: {:#?}", nearest);
             let furthest =
                 query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
 
@@ -85,7 +83,6 @@ where
                 .map(|element| hnsw.get(&element.get_index()).unwrap())
                 .cloned()
             {
-                println!("e: {:#?}", e);
                 // Update C and W
                 if self.visited_elements.iter().find(|&v| v == &e).is_none() {
                     self.visited_elements.push(e.clone());
@@ -128,11 +125,6 @@ where
                 }
             }
         }
-
-        println!(
-            "found_nearest_neighbours: {:#?}",
-            self.found_nearest_neighbors
-        );
 
         if self.found_nearest_neighbors.len() < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN {
             &self.found_nearest_neighbors

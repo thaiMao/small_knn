@@ -480,8 +480,6 @@ where
             }
         });
 
-        println!("{:#?}", self.nearest_elements);
-        println!("{:#?}", self.hnsw);
         if self.nearest_elements.len() < K {
             panic!("Not enough elements inserted");
         }
