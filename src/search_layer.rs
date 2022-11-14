@@ -69,8 +69,14 @@ where
             });
 
             if let Some(nearest) = self.candidates.pop() {
-                let furthest =
-                    query_element.furthest(self.found_nearest_neighbors.as_slice(), &self.distance);
+                let furthest = match query_element
+                    .furthest(self.found_nearest_neighbors.as_slice(), &self.distance)
+                {
+                    Some(furthest) => furthest,
+                    None => {
+                        panic!("Cannot find furthest neighbor. Check neighbors list is not empty.");
+                    }
+                };
 
                 if query_element.distance(&nearest, &self.distance)
                     > query_element.distance(&furthest, &self.distance)
@@ -88,8 +94,14 @@ where
                     // Update C and W
                     if self.visited_elements.iter().find(|&v| v == &e).is_none() {
                         self.visited_elements.push(e.clone());
-                        let furthest =
-                            query_element.furthest(&self.found_nearest_neighbors, &self.distance);
+                        let furthest = match query_element
+                            .furthest(&self.found_nearest_neighbors, &self.distance)
+                        {
+                            Some(furthest) => furthest,
+                            None => {
+                                panic!("Cannot find furthest neighbor. Check neighbors list is not empty.");
+                            }
+                        };
 
                         if query_element.distance(&e, &self.distance)
                             < query_element.distance(&furthest, &self.distance)

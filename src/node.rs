@@ -19,7 +19,7 @@ where
         &self,
         neighbors: &[EnterPoint<N, M, T>],
         distance: &Distance,
-    ) -> EnterPoint<N, M, T>;
+    ) -> Option<EnterPoint<N, M, T>>;
 
     fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T;
 }

@@ -96,23 +96,26 @@ where
         &self,
         neighbors: &[EnterPoint<N, M, T>],
         distance: &Distance,
-    ) -> EnterPoint<N, M, T> {
-        let mut highest = None;
+    ) -> Option<EnterPoint<N, M, T>> {
+        // Closest found elements should contain at least one element.
+        debug_assert!(neighbors.len() > 0);
+
+        let mut highest = T::zero();
         let mut highest_index = 0;
         for (index, element) in neighbors.iter().enumerate() {
             let temp = distance.calculate(element.value, self.value);
 
-            if highest.is_none() {
-                highest = Some(temp);
+            if index == 0 {
+                highest = temp;
             }
 
-            if temp > highest.unwrap() {
-                highest = Some(temp);
+            if temp > highest {
+                highest = temp;
                 highest_index = index;
             }
         }
 
-        neighbors.get(highest_index).unwrap().clone()
+        neighbors.get(highest_index).copied()
     }
 
     fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T {
