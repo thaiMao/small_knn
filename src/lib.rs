@@ -499,7 +499,6 @@ where
         );
         self.nearest_elements.clear();
         self.nearest_elements.extend_from_slice(&closest_neighbors);
-
         // Return nearest elements
         // Sort elements by nearest to furthest order from query element.
         self.nearest_elements.sort_by(|a, b| {
@@ -528,7 +527,10 @@ where
         for i in 0..K {
             output[i] = self.nearest_elements[i].get_index();
         }
-
+        // Need to clear nearest elements so elements can be inserted after
+        // search_neighbors is called and search_neighbors return the
+        // correct nearest neighbors.
+        self.nearest_elements.clear();
         Ok(output)
     }
 
@@ -731,54 +733,6 @@ where
 pub enum NeighborSelectionAlgorithm {
     Simple,
     Heuristic,
-}
-
-#[cfg(test)]
-mod knn_tests {
-    use super::HNSW;
-    use crate::distance::Distance;
-    use std::ops::Deref;
-
-    const DIMENSIONS: usize = 2;
-    const K: usize = 2;
-
-    #[test]
-    fn test_search() {
-        struct MyNode<const N: usize, T>
-        where
-            T: Clone + Copy,
-        {
-            value: [T; N],
-        }
-
-        impl<const N: usize, T> Deref for MyNode<N, T>
-        where
-            T: Clone + Copy,
-        {
-            type Target = [T; N];
-            fn deref(&self) -> &Self::Target {
-                &self.value
-            }
-        }
-
-        let mut knn = HNSW::<DIMENSIONS, f32>::default()
-            .set_distance(Distance::Euclidean)
-            .build();
-
-        knn.insert(0, MyNode { value: [1.0, 1.0] });
-        knn.insert(1, MyNode { value: [2.0, 2.0] });
-        knn.insert(2, MyNode { value: [10.0, 5.0] });
-        knn.insert(
-            3,
-            MyNode {
-                value: [11.0, 15.0],
-            },
-        );
-        let neighbors = knn.search_neighbors::<K, _>(MyNode { value: [2.1, 2.1] });
-        assert_eq!(neighbors.unwrap(), [1, 0]);
-
-        knn.clear();
-    }
 }
 
 #[derive(Clone, Copy)]
