@@ -1,7 +1,8 @@
 use love_thy::{distance::Distance, HNSW};
 use std::ops::Deref;
 
-fn main() {
+#[test]
+fn test() {
     struct MyNode<const N: usize, T>
     where
         T: Clone + Copy,
