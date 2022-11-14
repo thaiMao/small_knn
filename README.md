@@ -3,7 +3,7 @@
 [![CircleCI](https://circleci.com/gh/thaiMao/small_knn.svg?style=shield)](https://app.circleci.com/pipelines/github/thaiMao/small_knn)
 
 This library is an approximate K-nearest neighbor search based on Hierarchical
-Navigable Small World (https://arxiv.org/pdf/1603.09320.pdf) written in Rust.
+Navigable Small World (https://arxiv.org/pdf/1603.09320.pdf).
 
 ## Usage
 
