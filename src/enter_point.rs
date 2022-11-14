@@ -69,23 +69,27 @@ where
         &self,
         closest_found_elements: &[EnterPoint<N, M, T>],
         distance: &Distance,
-    ) -> EnterPoint<N, M, T> {
-        let mut lowest = None;
+    ) -> Option<EnterPoint<N, M, T>> {
+        // Closest found elements should contain at least one element.
+        debug_assert!(closest_found_elements.len() > 0);
+
+        let mut lowest = T::zero();
         let mut lowest_index = 0;
         for (index, element) in closest_found_elements.iter().enumerate() {
             let temp = distance.calculate(element.value, self.value);
 
-            if lowest.is_none() {
-                lowest = Some(temp);
+            // Reinitialize lowest value at index 0.
+            if index == 0 {
+                lowest = temp;
             }
 
-            if temp < lowest.unwrap() {
-                lowest = Some(temp);
+            if temp < lowest {
+                lowest = temp;
                 lowest_index = index;
             }
         }
 
-        closest_found_elements.get(lowest_index).unwrap().clone()
+        closest_found_elements.get(lowest_index).copied()
     }
 
     fn furthest(

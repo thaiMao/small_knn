@@ -255,9 +255,12 @@ where
 
                 let nearest_element_to_query =
                     query_element.nearest(self.found_nearest_neighbors.as_slice(), &self.distance);
-                enter_point = nearest_element_to_query;
-                self.enter_points.clear();
-                self.enter_points.push(nearest_element_to_query);
+
+                if let Some(nearest_element_to_query) = nearest_element_to_query {
+                    enter_point = nearest_element_to_query;
+                    self.enter_points.clear();
+                    self.enter_points.push(nearest_element_to_query);
+                }
             }
 
             for layer in (0..=top_layer_level.min(new_element_level)).rev() {
@@ -450,9 +453,12 @@ where
 
             // Get nearest element from W to q.
             let nearest = query_element.nearest(&self.nearest_elements, &self.distance);
-            enter_point = nearest;
-            self.enter_points.clear();
-            self.enter_points.extend_from_slice(&[nearest]);
+
+            if let Some(nearest) = nearest {
+                enter_point = nearest;
+                self.enter_points.clear();
+                self.enter_points.extend_from_slice(&[nearest]);
+            }
         }
 
         let closest_neighbors = self.search_layer.search::<EF_CONSTRUCTION>(

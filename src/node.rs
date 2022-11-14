@@ -13,7 +13,7 @@ where
         &self,
         closest_found_elements: &[EnterPoint<N, M, T>],
         distance: &Distance,
-    ) -> EnterPoint<N, M, T>;
+    ) -> Option<EnterPoint<N, M, T>>;
 
     fn furthest(
         &self,
