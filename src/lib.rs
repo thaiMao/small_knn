@@ -205,7 +205,7 @@ where
     /// Insert elements into a graph structure.
     /// * `M` - Number of established connections.
     /// * `M_MAX` - Maximum number of connections for each element per layer.
-    pub fn insert<Q>(&mut self, index: usize, value: Q)
+    pub fn insert<Q>(&mut self, index: usize, value: Q) -> Result<(), ()>
     where
         Q: Deref + Deref<Target = [T; N]>,
         Standard: Distribution<T>,
@@ -232,8 +232,8 @@ where
 
         let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
-        if self.enter_point_index.is_some() {
-            let mut enter_point = enter_point.unwrap().clone();
+        if let Some(enter_point) = enter_point {
+            let mut enter_point = enter_point.clone();
             let r = if top_layer_level >= new_element_level + 1 {
                 new_element_level + 1..=top_layer_level
             } else {
@@ -388,7 +388,10 @@ where
                         }
 
                         // Get enter point from hashmap, clear and replace connections with new_econn.
-                        let e = self.hnsw.get_mut(k).unwrap();
+                        let e = match self.hnsw.get_mut(k) {
+                            Some(e) => e,
+                            None => return Err(()),
+                        };
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn_elements.iter().flatten().cloned() {
@@ -415,6 +418,8 @@ where
         self.econn.clear();
         self.neighbors.clear();
         self.found_nearest_neighbors.clear();
+
+        Ok(())
     }
 
     pub fn clear(&mut self) {
@@ -435,7 +440,10 @@ where
     {
         // Get enter point for hnsw.
         let mut enter_point = match self.enter_point_index {
-            Some(index) => self.hnsw.get(&index).unwrap().clone(),
+            Some(index) => match self.hnsw.get(&index) {
+                Some(enter_point) => enter_point.clone(),
+                None => return Err(()),
+            },
             None => return Err(()),
         };
         let query_element = QueryElement::new(*value);
@@ -595,7 +603,8 @@ where
             for e in self.found_nearest_neighbors.iter() {
                 for e_adjacent in e
                     .neighbourhood(layer)
-                    .map(|element| self.hnsw.get(&element.get_index()).unwrap())
+                    .map(|element| self.hnsw.get(&element.get_index()))
+                    .flatten()
                 {
                     if self
                         .working_queue
