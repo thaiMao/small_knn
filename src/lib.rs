@@ -382,7 +382,7 @@ where
                             .flatten()
                             .zip(new_econn_elements.iter_mut())
                         {
-                            let ep = self.hnsw.get(i).unwrap().clone();
+                            let ep = self.hnsw.get(index).unwrap().clone();
 
                             *e = Some(Element::new(ep.get_index(), layer));
                         }
