@@ -628,6 +628,7 @@ where
                 }
             });
             // Extract nearest element from working queue.
+            // Unwrap: Working queue must be greater than zero to enter body of while loop.
             let nearest = self.working_queue.pop().unwrap();
 
             // If nearest element is closer to base element compared to any element from self.neighbors
@@ -636,7 +637,8 @@ where
                     .neighbors
                     .iter()
                     .flatten()
-                    .map(|k| self.hnsw.get(k).unwrap())
+                    .map(|k| self.hnsw.get(k))
+                    .flatten()
                     .map(|n| base_element.distance(n, &self.distance))
                     .reduce(T::min)
                     .unwrap_or(T::max_value())
@@ -666,9 +668,15 @@ where
                         Ordering::Less
                     }
                 });
-                let nearest = self.working_queue.pop().unwrap();
 
-                self.neighbors.push(Some(nearest.get_index()));
+                match self.working_queue.pop() {
+                    Some(nearest) => {
+                        self.neighbors.push(Some(nearest.get_index()));
+                    }
+                    None => {
+                        panic!("Not enough elements in working queue.");
+                    }
+                };
             }
         }
 
