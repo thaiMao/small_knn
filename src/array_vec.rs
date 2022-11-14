@@ -1,3 +1,5 @@
+use crate::error::KNNError;
+
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ArrayVec<T, const CAP: usize>
 where
@@ -18,15 +20,14 @@ where
         }
     }
 
-    // TODO Introduce proper error handling.
-    pub fn try_push(&mut self, element: T) -> Result<(), ()> {
+    pub fn try_push(&mut self, element: T) -> Result<(), KNNError> {
         match self.inner.get_mut(self.index) {
             Some(e) => {
                 *e = Some(element);
                 self.index += 1;
                 Ok(())
             }
-            None => Err(()),
+            None => Err(KNNError::Internal),
         }
     }
 
