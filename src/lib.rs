@@ -3,7 +3,7 @@ use crate::enter_point::EnterPoint;
 use crate::node::Node;
 use crate::query::{Element, QueryElement};
 use num::{cast, Float, Num};
-use rand::prelude::*;
+use rand::{distributions::Standard, prelude::*};
 use search_layer::SearchLayer;
 use std::collections::HashMap;
 use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref};
@@ -35,8 +35,6 @@ const M_MAX: usize = M_MAX_ZERO;
 const DEFAULT_MAX_CONNECTIONS: usize = 16;
 const EF_CONSTRUCTION: usize = 32;
 
-/// Used in select neighbors simple and heuristic. - TODO Make local.
-const NUMBER_OF_NEIGHBORS_TO_RETURN: usize = 8;
 /// * `N` - Number of dimensions.
 #[derive(Clone, Debug)]
 pub struct HNSW<const N: usize, T, Stage = Setup>
@@ -210,6 +208,7 @@ where
     pub fn insert<Q>(&mut self, index: usize, value: Q)
     where
         Q: Deref + Deref<Target = [T; N]>,
+        Standard: Distribution<T>,
     {
         self.found_nearest_neighbors.clear();
         let query_element = QueryElement::new(*value);
@@ -226,8 +225,8 @@ where
             None => 0,
         };
 
+        let random_number: T = self.rng.gen::<T>();
         // New element's level.
-        let random_number: T = cast::<f32, T>(self.rng.gen()).unwrap();
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
         let new_element_level = cast::<T, usize>(new_element_level).unwrap();
 
