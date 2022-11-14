@@ -51,4 +51,38 @@ fn test() {
     knn.clear();
     neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.4, 2.4] });
     assert!(neighbors.is_err());
+
+    knn.clear();
+    _ = knn.insert(
+        0,
+        MyStruct {
+            value: [42.0, 42.0],
+        },
+    );
+
+    _ = knn.insert(
+        1,
+        MyStruct {
+            value: [24.0, 24.0],
+        },
+    );
+
+    _ = knn.insert(
+        2,
+        MyStruct {
+            value: [25.0, 25.0],
+        },
+    );
+
+    _ = knn.insert(
+        3,
+        MyStruct {
+            value: [34.0, 34.0],
+        },
+    );
+
+    neighbors = knn.search_neighbors::<K, _>(MyStruct {
+        value: [40.0, 40.0],
+    });
+    assert_eq!(neighbors.unwrap(), [0, 3]);
 }

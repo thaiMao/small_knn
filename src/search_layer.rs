@@ -28,6 +28,12 @@ where
         }
     }
 
+    pub fn clear(&mut self) {
+        self.visited_elements.clear();
+        self.candidates.clear();
+        self.found_nearest_neighbors.clear();
+    }
+
     pub fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
         &mut self,
         query_element: impl Node<N, M, T>,

@@ -21,15 +21,16 @@ pub struct Setup;
 pub struct Ready;
 
 const DEFAULT_CAPACITY: usize = 128;
-const DEFAULT_NORMALIZATION_FACTOR: f32 = 2.0;
+// A simple choice for the optimal normalization factor is 1 / ln(M).
+const DEFAULT_NORMALIZATION_FACTOR: f32 = 3.0;
 const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
-    NeighborSelectionAlgorithm::Simple;
+    NeighborSelectionAlgorithm::Heuristic;
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
 const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = false;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
 
 /// A reasonable range of M is from 5 to 48.
-const M: usize = 16;
+const M: usize = 32;
 /// Simulations suggest that 2 * M is a good choice for M_MAX_ZERO
 /// The maximum connections that an element can have for the ground layer.
 const M_MAX_ZERO: usize = M * 2;
@@ -232,7 +233,7 @@ where
         // New element's level.
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
         let new_element_level = cast::<T, usize>(new_element_level).unwrap();
-
+        println!("{:#?}", new_element_level);
         let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
         if let Some(enter_point) = enter_point {
@@ -438,9 +439,15 @@ where
             self.enter_point_index = Some(index);
         }
 
-        self.econn.clear();
-        self.neighbors.clear();
         self.found_nearest_neighbors.clear();
+        self.working_queue.clear();
+        self.neighbors.clear();
+        self.discarded_candidates.clear();
+        self.nearest_elements.clear();
+
+        self.enter_points.clear();
+        self.search_layer.clear();
+        self.econn.clear();
 
         Ok(())
     }
@@ -452,9 +459,11 @@ where
         self.neighbors.clear();
         self.discarded_candidates.clear();
         self.nearest_elements.clear();
-
+        self.search_layer.clear();
         self.econn.clear();
+
         self.hnsw.clear();
+        self.enter_point_index = None;
     }
 
     // Algorithm 5 - Search KNN
@@ -481,7 +490,7 @@ where
             let closest_neighbor =
                 self.search_layer
                     .search::<1>(query_element, &[enter_point], layer, &self.hnsw);
-            //self.nearest_elements.clear();
+            self.nearest_elements.clear();
             self.nearest_elements.extend_from_slice(&closest_neighbor);
 
             // Get nearest element from W to q.
@@ -500,7 +509,7 @@ where
             0,
             &self.hnsw,
         );
-        self.nearest_elements.clear();
+        //self.nearest_elements.clear();
         self.nearest_elements.extend_from_slice(&closest_neighbors);
         // Return nearest elements
         // Sort elements by nearest to furthest order from query element.
@@ -517,8 +526,11 @@ where
                 Ordering::Greater
             }
         });
+        self.nearest_elements.dedup();
 
         if self.nearest_elements.len() < K {
+            // Hey
+            println!("{:#?}", self.nearest_elements);
             return Err(KNNError::InsufficientInsertions {
                 expected: K,
                 found: self.nearest_elements.len(),
@@ -526,6 +538,10 @@ where
         }
 
         let mut output = [0; K];
+
+        if value[0] == cast::<usize, T>(40).unwrap() {
+            println!("{:#?}", self.nearest_elements);
+        }
 
         for i in 0..K {
             output[i] = self.nearest_elements[i].get_index();
