@@ -49,7 +49,9 @@ knn.insert(4, MyNode { value: [11.0, 15.0] },);
 - Search for neighbors.
 
 ```rust
-let neighbors = knn.search_neighbors::<K,>(MyNode { value: [2.1, 2.1] });
+let neighbors = knn.search_neighbors::<K,>(MyStruct {
+    value: [2.1, 2.1]
+});
 
 // Returns the index of the nearest neighbours
 assert_eq!(neighbors.unwrap(), [1, 0]);
