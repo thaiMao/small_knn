@@ -2,6 +2,7 @@ use crate::distance::Distance;
 use crate::enter_point::EnterPoint;
 use crate::node::Node;
 use crate::query::{Element, QueryElement};
+use error::KNNError;
 use num::{cast, Float, Num};
 use rand::{distributions::Standard, prelude::*};
 use search_layer::SearchLayer;
@@ -11,9 +12,11 @@ use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref}
 mod array_vec;
 pub mod distance;
 mod enter_point;
+mod error;
 mod node;
 mod query;
 mod search_layer;
+
 pub struct Setup;
 pub struct Ready;
 
@@ -205,7 +208,7 @@ where
     /// Insert elements into a graph structure.
     /// * `M` - Number of established connections.
     /// * `M_MAX` - Maximum number of connections for each element per layer.
-    pub fn insert<Q>(&mut self, index: usize, value: Q) -> Result<(), ()>
+    pub fn insert<Q>(&mut self, index: usize, value: Q) -> Result<(), KNNError>
     where
         Q: Deref + Deref<Target = [T; N]>,
         Standard: Distribution<T>,
@@ -292,7 +295,7 @@ where
                     let neighbor = match self.hnsw.get_mut(k) {
                         Some(n) => n,
                         None => {
-                            return Err(());
+                            return Err(KNNError::Internal);
                         }
                     };
 
@@ -311,7 +314,7 @@ where
 
                     let e = match self.hnsw.get(k) {
                         Some(e) => e.clone(),
-                        None => return Err(()),
+                        None => return Err(KNNError::Internal),
                     };
 
                     // Popuate self.econn which is used in select_neighbors methods
@@ -399,7 +402,7 @@ where
                         // Get enter point from hashmap, clear and replace connections with new_econn.
                         let e = match self.hnsw.get_mut(k) {
                             Some(e) => e,
-                            None => return Err(()),
+                            None => return Err(KNNError::Internal),
                         };
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
