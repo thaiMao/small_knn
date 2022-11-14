@@ -452,6 +452,9 @@ where
         self.neighbors.clear();
         self.discarded_candidates.clear();
         self.nearest_elements.clear();
+
+        self.econn.clear();
+        self.hnsw.clear();
     }
 
     // Algorithm 5 - Search KNN

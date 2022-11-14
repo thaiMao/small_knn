@@ -35,15 +35,20 @@ fn test() {
             value: [11.0, 15.0],
         },
     );
-    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
+    let mut neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
     assert_eq!(neighbors.unwrap(), [1, 0]);
 
     // Insert another value and search again.
     _ = knn.insert(5, MyStruct { value: [2.5, 2.5] });
-    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
+    neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
     assert_eq!(neighbors.unwrap(), [1, 5]);
 
     // 2.4 is closer to index 5 than index 1
-    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.4, 2.4] });
+    neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.4, 2.4] });
     assert_eq!(neighbors.unwrap(), [5, 1]);
+
+    // Clear KNN and assert search call returns an error when there are not enough examples inserted.
+    knn.clear();
+    neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.4, 2.4] });
+    assert!(neighbors.is_err());
 }
