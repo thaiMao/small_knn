@@ -1,4 +1,4 @@
-# Small KNN
+# small_knn
 
 [![CircleCI](https://circleci.com/gh/thaiMao/small_knn.svg?style=shield)](https://app.circleci.com/pipelines/github/thaiMao/small_knn)
 
