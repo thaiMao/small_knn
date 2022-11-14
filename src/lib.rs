@@ -355,13 +355,21 @@ where
                             .flatten()
                             .zip(new_econn_elements.iter_mut())
                         {
-                            let ep = self.hnsw.get(i).unwrap().clone();
+                            let ep = match self.hnsw.get(i) {
+                                Some(ep) => ep.clone(),
+                                None => return Err(KNNError::Internal),
+                            };
 
                             *e = Some(Element::new(ep.get_index(), layer));
                         }
 
                         // Get enter point from hashmap, clear and replace connections with new_econn.
-                        let e = self.hnsw.get_mut(k).unwrap();
+                        let e = match self.hnsw.get_mut(k) {
+                            Some(e) => e,
+                            None => {
+                                return Err(KNNError::Internal);
+                            }
+                        };
                         e.connections.clear();
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn_elements.iter().flatten().cloned() {
@@ -394,7 +402,10 @@ where
                             .flatten()
                             .zip(new_econn_elements.iter_mut())
                         {
-                            let ep = self.hnsw.get(index).unwrap().clone();
+                            let ep = match self.hnsw.get(index) {
+                                Some(ep) => ep.clone(),
+                                None => return Err(KNNError::Internal),
+                            };
 
                             *e = Some(Element::new(ep.get_index(), layer));
                         }
@@ -445,7 +456,7 @@ where
 
     // Algorithm 5 - Search KNN
     /// * `K` -Number of nearest neighbors to return.
-    pub fn search_neighbors<const K: usize, Q>(&mut self, value: Q) -> Result<[usize; K], ()>
+    pub fn search_neighbors<const K: usize, Q>(&mut self, value: Q) -> Result<[usize; K], KNNError>
     where
         Q: Deref + Deref<Target = [T; N]>,
         T: Num + PartialOrd,
@@ -454,9 +465,9 @@ where
         let mut enter_point = match self.enter_point_index {
             Some(index) => match self.hnsw.get(&index) {
                 Some(enter_point) => enter_point.clone(),
-                None => return Err(()),
+                None => return Err(KNNError::Internal),
             },
-            None => return Err(()),
+            None => return Err(KNNError::Internal),
         };
         let query_element = QueryElement::new(*value);
         //self.nearest_elements.clear();
@@ -506,7 +517,10 @@ where
         });
 
         if self.nearest_elements.len() < K {
-            panic!("Not enough elements inserted");
+            return Err(KNNError::InsufficientInsertions {
+                expected: K,
+                found: self.nearest_elements.len(),
+            });
         }
 
         let mut output = [0; K];
