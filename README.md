@@ -2,14 +2,8 @@
 
 [![CircleCI](https://circleci.com/gh/thaiMao/small_knn.svg?style=shield)](https://app.circleci.com/pipelines/github/thaiMao/small_knn)
 
-This library is an approximate K-nearest neighbor search based on navigable small world
-graphs (https://arxiv.org/pdf/1603.09320.pdf) written in Rust.
-
-Design goals
-
-Preallocate all heap memory required upfront during the "build" phase.
-
-Avoid memory allocations and deallocations when searching for nearest neighbors.
+This library is an approximate K-nearest neighbor search based on navigable
+small world graphs (https://arxiv.org/pdf/1603.09320.pdf) written in Rust.
 
 ## Usage
 
@@ -61,7 +55,17 @@ let neighbors = knn.search_neighbors::<K,>(MyNode { value: [2.1, 2.1] });
 assert_eq!(neighbors.unwrap(), [1, 0]);
 ```
 
+## Design goals
+
+The goal is to carry out a similarity search for a fixed number K of nearest
+neighbors for a given query without incurring additional heap memory
+allocations while searching. Any type can be inserted provided it implements
+the `Deref` trait and its underlying value is of a fixed size known at compile
+time.
+
 ## Documentation
+
+TODO
 
 ## License
 
