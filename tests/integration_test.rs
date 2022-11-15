@@ -2,7 +2,7 @@ use small_knn::{distance::Distance, HNSW};
 use std::ops::Deref;
 
 #[test]
-fn test() {
+fn test_clear() {
     struct MyStruct<const N: usize, T>
     where
         T: Clone + Copy,
@@ -85,4 +85,70 @@ fn test() {
         value: [40.0, 40.0],
     });
     assert_eq!(neighbors.unwrap(), [0, 3]);
+}
+
+#[test]
+#[should_panic]
+fn test_insufficient_insertions() {
+    struct MyStruct<const N: usize, T>
+    where
+        T: Clone + Copy,
+    {
+        value: [T; N],
+    }
+
+    impl<const N: usize, T> Deref for MyStruct<N, T>
+    where
+        T: Clone + Copy,
+    {
+        type Target = [T; N];
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
+    }
+
+    const DIMENSIONS: usize = 2;
+    const K: usize = 2;
+    let mut knn = HNSW::<DIMENSIONS, f32>::default()
+        .set_distance(Distance::Euclidean)
+        .build();
+
+    _ = knn.insert(0, MyStruct { value: [1.0, 1.0] });
+
+    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
+    assert_eq!(neighbors.unwrap(), [1, 0]);
+}
+
+#[test]
+fn test_minimum_insertions() {
+    struct MyStruct<const N: usize, T>
+    where
+        T: Clone + Copy,
+    {
+        value: [T; N],
+    }
+
+    impl<const N: usize, T> Deref for MyStruct<N, T>
+    where
+        T: Clone + Copy,
+    {
+        type Target = [T; N];
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
+    }
+
+    const DIMENSIONS: usize = 2;
+    const K: usize = 2;
+    let mut knn = HNSW::<DIMENSIONS, f32>::default()
+        .set_distance(Distance::Euclidean)
+        .build();
+
+    _ = knn.insert(0, MyStruct { value: [1.0, 1.0] });
+    _ = knn.insert(1, MyStruct { value: [2.0, 2.0] });
+    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [2.1, 2.1] });
+    assert_eq!(neighbors.unwrap(), [1, 0]);
+
+    let neighbors = knn.search_neighbors::<K, _>(MyStruct { value: [1.1, 1.1] });
+    assert_eq!(neighbors.unwrap(), [0, 1]);
 }
