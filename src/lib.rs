@@ -26,7 +26,7 @@ const DEFAULT_NORMALIZATION_FACTOR: f32 = 3.0;
 const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
     NeighborSelectionAlgorithm::Heuristic;
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
-const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = false;
+const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = true;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
 
 /// A reasonable range of M is from 5 to 48.
@@ -190,7 +190,7 @@ where
             normalization_factor: cast::<f32, T>(DEFAULT_NORMALIZATION_FACTOR).unwrap(),
             neighbor_selection_algorithm: NeighborSelectionAlgorithm::Heuristic,
             extend_candidates: true,
-            keep_pruned_connections: false,
+            keep_pruned_connections: self.keep_pruned_connections,
             distance: self.distance,
             capacity: self.capacity,
             nearest_elements,
@@ -233,7 +233,6 @@ where
         // New element's level.
         let new_element_level = (-random_number.ln() * self.normalization_factor).floor();
         let new_element_level = cast::<T, usize>(new_element_level).unwrap();
-        println!("{:#?}", new_element_level);
         let mut ep = EnterPoint::new(query_element.value, index, new_element_level);
 
         if let Some(enter_point) = enter_point {
@@ -278,7 +277,14 @@ where
                 self.found_nearest_neighbors
                     .extend_from_slice(&found_nearest_neighbors);
 
-                let neighbors = match self.neighbor_selection_algorithm {
+                if index == 2 {
+                    println!("W: {:#?}", self.found_nearest_neighbors);
+                    println!("layer: {:#?}", layer);
+                    println!("query: {:#?}", query_element);
+                    println!("enter_points: {:#?}", self.enter_points);
+                }
+
+                let mut neighbors = match self.neighbor_selection_algorithm {
                     NeighborSelectionAlgorithm::Simple => {
                         self.select_neighbors_simple::<M>(query_element, Candidate::Neighbors)
                     }
@@ -290,6 +296,15 @@ where
                         self.keep_pruned_connections,
                     ),
                 };
+
+                if index == 2 {
+                    println!("neighbors: {:#?}", neighbors);
+                    println!("extend_candidates: {:#?}", self.extend_candidates);
+                    println!(
+                        "keep_pruned_connections: {:#?}",
+                        self.keep_pruned_connections
+                    );
+                }
 
                 // Add bidirectional connections from neighbors to q at layer lc
                 for k in neighbors.iter().flatten() {
@@ -481,8 +496,12 @@ where
             },
             None => return Err(KNNError::Internal),
         };
+        self.enter_points.clear();
+        // Initialize enter points to handle case where top level is zero (and does not enter
+        // for loop).
+        self.enter_points.extend_from_slice(&[enter_point]);
+
         let query_element = QueryElement::new(*value);
-        //self.nearest_elements.clear();
         // Top layer for hnsw.
         let level = enter_point.get_layer();
 
@@ -509,7 +528,7 @@ where
             0,
             &self.hnsw,
         );
-        //self.nearest_elements.clear();
+        self.nearest_elements.clear();
         self.nearest_elements.extend_from_slice(&closest_neighbors);
         // Return nearest elements
         // Sort elements by nearest to furthest order from query element.
@@ -526,11 +545,8 @@ where
                 Ordering::Greater
             }
         });
-        self.nearest_elements.dedup();
 
         if self.nearest_elements.len() < K {
-            // Hey
-            println!("{:#?}", self.nearest_elements);
             return Err(KNNError::InsufficientInsertions {
                 expected: K,
                 found: self.nearest_elements.len(),
@@ -538,10 +554,6 @@ where
         }
 
         let mut output = [0; K];
-
-        if value[0] == cast::<usize, T>(40).unwrap() {
-            println!("{:#?}", self.nearest_elements);
-        }
 
         for i in 0..K {
             output[i] = self.nearest_elements[i].get_index();
@@ -711,7 +723,7 @@ where
             {
                 // Extract closest neighbor to element from the queue.
                 // Sort the working queue from furthest to nearest.
-                self.working_queue.sort_by(|a, b| {
+                self.discarded_candidates.sort_by(|a, b| {
                     let distance_a_q = self.distance.calculate(base_element.value(), a.value());
                     let distance_b_q = self.distance.calculate(base_element.value(), b.value());
                     let x = distance_a_q - distance_b_q;
@@ -725,9 +737,17 @@ where
                     }
                 });
 
-                match self.working_queue.pop() {
+                match self.discarded_candidates.pop() {
                     Some(nearest) => {
-                        self.neighbors.push(Some(nearest.get_index()));
+                        let exists = self
+                            .neighbors
+                            .iter()
+                            .flatten()
+                            .any(|n| *n == nearest.get_index());
+
+                        if !exists {
+                            self.neighbors.push(Some(nearest.get_index()));
+                        }
                     }
                     None => {}
                 };
@@ -758,4 +778,195 @@ pub enum NeighborSelectionAlgorithm {
 enum Candidate {
     ElementConnections,
     Neighbors,
+}
+
+#[test]
+fn flakey_test() {
+    struct MyStruct<const N: usize, T>
+    where
+        T: Clone + Copy,
+    {
+        value: [T; N],
+    }
+
+    impl<const N: usize, T> Deref for MyStruct<N, T>
+    where
+        T: Clone + Copy,
+    {
+        type Target = [T; N];
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
+    }
+
+    const DIMENSIONS: usize = 2;
+    const K: usize = 2;
+    let mut knn = HNSW::<DIMENSIONS, f32>::default()
+        .set_distance(Distance::Euclidean)
+        .build();
+
+    // Clear KNN and assert search call returns an error when there are not enough examples inserted.
+
+    knn.clear();
+    _ = knn.insert(
+        0,
+        MyStruct {
+            value: [42.0, 42.0],
+        },
+    );
+
+    _ = knn.insert(
+        1,
+        MyStruct {
+            value: [24.0, 24.0],
+        },
+    );
+
+    _ = knn.insert(
+        2,
+        MyStruct {
+            value: [25.0, 25.0],
+        },
+    );
+
+    _ = knn.insert(
+        3,
+        MyStruct {
+            value: [34.0, 34.0],
+        },
+    );
+
+    let neighbors = knn.search_neighbors::<K, _>(MyStruct {
+        value: [40.0, 40.0],
+    });
+    assert_eq!(neighbors.unwrap(), [0, 3]);
+}
+
+#[test]
+fn select_neighbors_heuristic_test() {
+    use crate::array_vec::ArrayVec;
+
+    struct MyStruct<const N: usize, T>
+    where
+        T: Clone + Copy,
+    {
+        value: [T; N],
+    }
+
+    impl<const N: usize, T> Deref for MyStruct<N, T>
+    where
+        T: Clone + Copy,
+    {
+        type Target = [T; N];
+        fn deref(&self) -> &Self::Target {
+            &self.value
+        }
+    }
+
+    const DIMENSIONS: usize = 2;
+    let mut knn = HNSW::<DIMENSIONS, f32>::default()
+        .set_distance(Distance::Euclidean)
+        .build();
+    knn.found_nearest_neighbors = vec![
+        EnterPoint {
+            index: 1,
+            layer: 7,
+            value: [24.0, 24.0],
+            connections: ArrayVec {
+                inner: [
+                    Some(Element::new(0, 2)),
+                    Some(Element::new(0, 1)),
+                    Some(Element::new(0, 0)),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                index: 3,
+            },
+        },
+        EnterPoint {
+            index: 0,
+            layer: 2,
+            value: [42.0, 42.0],
+            connections: ArrayVec {
+                inner: [
+                    Some(Element::new(1, 2)),
+                    Some(Element::new(1, 1)),
+                    Some(Element::new(1, 0)),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                index: 3,
+            },
+        },
+    ];
+    let layer = 0;
+    let extend_candidates = true;
+    let keep_pruned_connections = true;
+    const NUMBER_OF_NEIGHBORS_TO_RETURN: usize = 2;
+
+    let base_element = QueryElement::new([25.0, 25.0]);
+    let candidate = Candidate::Neighbors;
+    let neighbors = knn.select_neighbors_heuristic::<NUMBER_OF_NEIGHBORS_TO_RETURN>(
+        base_element,
+        candidate,
+        layer,
+        extend_candidates,
+        keep_pruned_connections,
+    );
+
+    assert_eq!(neighbors, [Some(1), Some(0)]);
 }

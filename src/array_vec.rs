@@ -5,8 +5,8 @@ pub struct ArrayVec<T, const CAP: usize>
 where
     T: Clone + Copy,
 {
-    inner: [Option<T>; CAP],
-    index: usize,
+    pub inner: [Option<T>; CAP],
+    pub index: usize,
 }
 
 impl<T, const CAP: usize> ArrayVec<T, CAP>

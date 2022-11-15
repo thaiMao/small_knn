@@ -9,9 +9,9 @@ use std::iter::Sum;
 /// * `M` - Number of established connections.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EnterPoint<const N: usize, const M: usize, T> {
-    index: usize,
-    layer: usize,
-    value: [T; N],
+    pub index: usize,
+    pub layer: usize,
+    pub value: [T; N],
     pub connections: ArrayVec<Element, M>,
 }
 
