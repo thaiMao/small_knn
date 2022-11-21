@@ -7,7 +7,7 @@ use num::{cast, Float, Num};
 use rand::{distributions::Standard, prelude::*};
 use search_layer::SearchLayer;
 use std::collections::HashMap;
-use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData, ops::Deref};
+use std::{cmp::Ordering, fmt::Debug, iter::Sum, marker::PhantomData};
 
 mod array_vec;
 pub mod distance;
@@ -209,13 +209,13 @@ where
     /// Insert elements into a graph structure.
     /// * `M` - Number of established connections.
     /// * `M_MAX` - Maximum number of connections for each element per layer.
-    pub fn insert<Q>(&mut self, index: usize, value: Q) -> Result<(), KNNError>
+    pub fn insert(&mut self, index: usize, value: [T; N]) -> Result<(), KNNError>
     where
-        Q: Deref + Deref<Target = [T; N]>,
+        [T; N]: Sized,
         Standard: Distribution<T>,
     {
         self.found_nearest_neighbors.clear();
-        let query_element = QueryElement::new(*value);
+        let query_element = QueryElement::new(value);
 
         // Get enter point for HNSW.
         self.enter_points.clear();
@@ -483,9 +483,12 @@ where
 
     // Algorithm 5 - Search KNN
     /// * `K` -Number of nearest neighbors to return.
-    pub fn search_neighbors<const K: usize, Q>(&mut self, value: Q) -> Result<[usize; K], KNNError>
+    pub fn search_neighbors<const K: usize>(
+        &mut self,
+        value: [T; N],
+    ) -> Result<[usize; K], KNNError>
     where
-        Q: Deref + Deref<Target = [T; N]>,
+        [T; N]: Sized,
         T: Num + PartialOrd,
     {
         // Get enter point for hnsw.
@@ -501,7 +504,7 @@ where
         // for loop).
         self.enter_points.extend_from_slice(&[enter_point]);
 
-        let query_element = QueryElement::new(*value);
+        let query_element = QueryElement::new(value);
         // Top layer for hnsw.
         let level = enter_point.get_layer();
 
@@ -533,8 +536,8 @@ where
         // Return nearest elements
         // Sort elements by nearest to furthest order from query element.
         self.nearest_elements.sort_by(|a, b| {
-            let distance_a_q = self.distance.calculate(*value, a.get_value());
-            let distance_b_q = self.distance.calculate(*value, b.get_value());
+            let distance_a_q = self.distance.calculate(value, a.get_value());
+            let distance_b_q = self.distance.calculate(value, b.get_value());
             let x = distance_a_q - distance_b_q;
 
             if x < T::zero() {
@@ -782,23 +785,6 @@ enum Candidate {
 
 #[test]
 fn flakey_test() {
-    struct MyStruct<const N: usize, T>
-    where
-        T: Clone + Copy,
-    {
-        value: [T; N],
-    }
-
-    impl<const N: usize, T> Deref for MyStruct<N, T>
-    where
-        T: Clone + Copy,
-    {
-        type Target = [T; N];
-        fn deref(&self) -> &Self::Target {
-            &self.value
-        }
-    }
-
     const DIMENSIONS: usize = 2;
     const K: usize = 2;
     let mut knn = HNSW::<DIMENSIONS, f32>::default()
@@ -808,60 +794,21 @@ fn flakey_test() {
     // Clear KNN and assert search call returns an error when there are not enough examples inserted.
 
     knn.clear();
-    _ = knn.insert(
-        0,
-        MyStruct {
-            value: [42.0, 42.0],
-        },
-    );
+    _ = knn.insert(0, [42.0, 42.0]);
 
-    _ = knn.insert(
-        1,
-        MyStruct {
-            value: [24.0, 24.0],
-        },
-    );
+    _ = knn.insert(1, [24.0, 24.0]);
 
-    _ = knn.insert(
-        2,
-        MyStruct {
-            value: [25.0, 25.0],
-        },
-    );
+    _ = knn.insert(2, [25.0, 25.0]);
 
-    _ = knn.insert(
-        3,
-        MyStruct {
-            value: [34.0, 34.0],
-        },
-    );
+    _ = knn.insert(3, [34.0, 34.0]);
 
-    let neighbors = knn.search_neighbors::<K, _>(MyStruct {
-        value: [40.0, 40.0],
-    });
+    let neighbors = knn.search_neighbors::<K>([40.0, 40.0]);
     assert_eq!(neighbors.unwrap(), [0, 3]);
 }
 
 #[test]
 fn select_neighbors_heuristic_test() {
     use crate::array_vec::ArrayVec;
-
-    struct MyStruct<const N: usize, T>
-    where
-        T: Clone + Copy,
-    {
-        value: [T; N],
-    }
-
-    impl<const N: usize, T> Deref for MyStruct<N, T>
-    where
-        T: Clone + Copy,
-    {
-        type Target = [T; N];
-        fn deref(&self) -> &Self::Target {
-            &self.value
-        }
-    }
 
     const DIMENSIONS: usize = 2;
     let mut knn = HNSW::<DIMENSIONS, f32>::default()
