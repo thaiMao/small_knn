@@ -11,6 +11,6 @@ fn main() {
     _ = knn.insert(1, [2.0, 2.0]);
     _ = knn.insert(2, [10.0, 5.0]);
     _ = knn.insert(4, [11.0, 15.0]);
-    let neighbors = knn.search_neighbors::<K, _>([2.1, 2.1]);
+    let neighbors = knn.search_neighbors::<K>([2.1, 2.1]);
     assert_eq!(neighbors.unwrap(), [1, 0]);
 }
