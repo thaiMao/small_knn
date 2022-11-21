@@ -17,7 +17,10 @@ mod node;
 mod query;
 mod search_layer;
 
+#[derive(Debug)]
 pub struct Setup;
+
+#[derive(Debug)]
 pub struct Ready;
 
 const DEFAULT_CAPACITY: usize = 128;
