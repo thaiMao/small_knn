@@ -277,13 +277,6 @@ where
                 self.found_nearest_neighbors
                     .extend_from_slice(&found_nearest_neighbors);
 
-                if index == 2 {
-                    println!("W: {:#?}", self.found_nearest_neighbors);
-                    println!("layer: {:#?}", layer);
-                    println!("query: {:#?}", query_element);
-                    println!("enter_points: {:#?}", self.enter_points);
-                }
-
                 let mut neighbors = match self.neighbor_selection_algorithm {
                     NeighborSelectionAlgorithm::Simple => {
                         self.select_neighbors_simple::<M>(query_element, Candidate::Neighbors)
@@ -296,15 +289,6 @@ where
                         self.keep_pruned_connections,
                     ),
                 };
-
-                if index == 2 {
-                    println!("neighbors: {:#?}", neighbors);
-                    println!("extend_candidates: {:#?}", self.extend_candidates);
-                    println!(
-                        "keep_pruned_connections: {:#?}",
-                        self.keep_pruned_connections
-                    );
-                }
 
                 // Add bidirectional connections from neighbors to q at layer lc
                 for k in neighbors.iter().flatten() {
