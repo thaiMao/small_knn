@@ -5,17 +5,19 @@ use crate::query::Element;
 use num::Float;
 use std::iter::Sum;
 
+/// Size of array that stores all connections to neighbors at all levels.
+const SIZE: usize = 128;
+
 /// * `N` - Fixed array size.
-/// * `M` - Number of established connections.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct EnterPoint<const N: usize, const M: usize, T> {
+pub struct EnterPoint<const N: usize, T> {
     pub index: usize,
     pub layer: usize,
     pub value: [T; N],
-    pub connections: ArrayVec<Element, M>,
+    pub connections: ArrayVec<Element, SIZE>,
 }
 
-impl<const N: usize, const M: usize, T> EnterPoint<N, M, T>
+impl<const N: usize, T> EnterPoint<N, T>
 where
     T: Float,
 {
@@ -75,7 +77,7 @@ where
     }
 }
 
-impl<const N: usize, const M: usize, T> Node<N, M, T> for EnterPoint<N, M, T>
+impl<const N: usize, T> Node<N, T> for EnterPoint<N, T>
 where
     T: Float + Sum,
 {
@@ -84,9 +86,9 @@ where
     }
     fn nearest(
         &self,
-        closest_found_elements: &[EnterPoint<N, M, T>],
+        closest_found_elements: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>> {
+    ) -> Option<EnterPoint<N, T>> {
         // Closest found elements should contain at least one element.
         debug_assert!(closest_found_elements.len() > 0);
 
@@ -111,9 +113,9 @@ where
 
     fn furthest(
         &self,
-        neighbors: &[EnterPoint<N, M, T>],
+        neighbors: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>> {
+    ) -> Option<EnterPoint<N, T>> {
         // Closest found elements should contain at least one element.
         debug_assert!(neighbors.len() > 0);
 
@@ -135,12 +137,12 @@ where
         neighbors.get(highest_index).copied()
     }
 
-    fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T {
+    fn distance(&self, enter_point: &EnterPoint<N, T>, distance: &Distance) -> T {
         distance.calculate(self.value, enter_point.value)
     }
 }
 
-impl<const N: usize, const M_MAX: usize, T> PartialEq<Element> for EnterPoint<N, M_MAX, T>
+impl<const N: usize, T> PartialEq<Element> for EnterPoint<N, T>
 where
     T: Float,
 {

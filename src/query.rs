@@ -12,7 +12,7 @@ where
     pub value: [T; N],
 }
 
-impl<const N: usize, const M: usize, T> Node<N, M, T> for QueryElement<N, T>
+impl<const N: usize, T> Node<N, T> for QueryElement<N, T>
 where
     T: Float + Sum,
 {
@@ -22,9 +22,9 @@ where
 
     fn nearest(
         &self,
-        closest_found_elements: &[EnterPoint<N, M, T>],
+        closest_found_elements: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>> {
+    ) -> Option<EnterPoint<N, T>> {
         // Closest found elements should contain at least one element.
         debug_assert!(closest_found_elements.len() > 0);
 
@@ -49,9 +49,9 @@ where
 
     fn furthest(
         &self,
-        neighbors: &[EnterPoint<N, M, T>],
+        neighbors: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>> {
+    ) -> Option<EnterPoint<N, T>> {
         // Closest found elements should contain at least one element.
         debug_assert!(neighbors.len() > 0);
 
@@ -73,7 +73,7 @@ where
         neighbors.get(highest_index).copied()
     }
 
-    fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T {
+    fn distance(&self, enter_point: &EnterPoint<N, T>, distance: &Distance) -> T {
         distance.calculate(self.value, enter_point.get_value())
     }
 }

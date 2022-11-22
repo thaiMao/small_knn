@@ -3,7 +3,7 @@ use crate::enter_point::EnterPoint;
 use num::Float;
 use std::iter::Sum;
 
-pub trait Node<const N: usize, const M: usize, T>
+pub trait Node<const N: usize, T>
 where
     T: Float + Sum,
 {
@@ -11,15 +11,15 @@ where
 
     fn nearest(
         &self,
-        closest_found_elements: &[EnterPoint<N, M, T>],
+        closest_found_elements: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>>;
+    ) -> Option<EnterPoint<N, T>>;
 
     fn furthest(
         &self,
-        neighbors: &[EnterPoint<N, M, T>],
+        neighbors: &[EnterPoint<N, T>],
         distance: &Distance,
-    ) -> Option<EnterPoint<N, M, T>>;
+    ) -> Option<EnterPoint<N, T>>;
 
-    fn distance(&self, enter_point: &EnterPoint<N, M, T>, distance: &Distance) -> T;
+    fn distance(&self, enter_point: &EnterPoint<N, T>, distance: &Distance) -> T;
 }
