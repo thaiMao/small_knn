@@ -148,3 +148,38 @@ where
         self.index == connection.get_index()
     }
 }
+
+#[cfg(test)]
+mod enter_point_tests {
+    use super::{Element, EnterPoint};
+    use crate::array_vec::ArrayVec;
+
+    #[test]
+    fn neighbourhood_test() {
+        let mut connections = ArrayVec::<Element, 128>::new();
+
+        connections.try_push(Element::new(4, 3)).unwrap();
+        connections.try_push(Element::new(5, 2)).unwrap();
+        connections.try_push(Element::new(2, 0)).unwrap();
+        connections.try_push(Element::new(6, 1)).unwrap();
+        connections.try_push(Element::new(8, 3)).unwrap();
+        connections.try_push(Element::new(1, 3)).unwrap();
+        connections.try_push(Element::new(3, 5)).unwrap();
+        connections.try_push(Element::new(0, 6)).unwrap();
+        connections.index = 8;
+        let enter_point = EnterPoint {
+            index: 0,
+            layer: 2,
+            value: [42_f32],
+            connections,
+        };
+
+        let layer = 3;
+        let neighbors: Vec<usize> = enter_point
+            .neighbourhood(layer)
+            .map(|element| element.get_index())
+            .collect();
+
+        assert_eq!(neighbors, vec![4, 8, 1]);
+    }
+}
