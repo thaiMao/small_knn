@@ -37,9 +37,9 @@ const M: usize = 32;
 /// Simulations suggest that 2 * M is a good choice for M_MAX_ZERO
 /// The maximum connections that an element can have for the ground layer.
 const M_MAX_ZERO: usize = M * 2;
-// TODO - Set proper M_MAX
-const M_MAX: usize = M_MAX_ZERO;
-const DEFAULT_MAX_CONNECTIONS: usize = 16;
+/// The maximum number of connections or neighbors for an element at any
+/// layer above layer zero.
+const M_MAX: usize = 8;
 const EF_CONSTRUCTION: usize = 32;
 
 /// * `N` - Number of dimensions.
@@ -49,24 +49,23 @@ where
     T: Float + Sum + Debug,
 {
     stage: PhantomData<Stage>,
-    enter_points: Vec<EnterPoint<N, M, T>>,
+    enter_points: Vec<EnterPoint<N, T>>,
     rng: rand::rngs::ThreadRng,
-    search_layer: SearchLayer<N, M, T>,
-    found_nearest_neighbors: Vec<EnterPoint<N, M, T>>,
-    working_queue: Vec<EnterPoint<N, M, T>>,
+    search_layer: SearchLayer<N, T>,
+    found_nearest_neighbors: Vec<EnterPoint<N, T>>,
+    working_queue: Vec<EnterPoint<N, T>>,
     neighbors: Vec<Option<usize>>,
-    discarded_candidates: Vec<EnterPoint<N, M, T>>,
+    discarded_candidates: Vec<EnterPoint<N, T>>,
     normalization_factor: T,
     neighbor_selection_algorithm: NeighborSelectionAlgorithm,
     extend_candidates: bool,
     keep_pruned_connections: bool,
     distance: Distance,
     capacity: usize,
-    nearest_elements: Vec<EnterPoint<N, M, T>>,
+    nearest_elements: Vec<EnterPoint<N, T>>,
     enter_point_index: Option<usize>,
-    econn: Vec<EnterPoint<N, M, T>>,
-    max_connections: usize,
-    hnsw: HashMap<usize, EnterPoint<N, M, T>>,
+    econn: Vec<EnterPoint<N, T>>,
+    hnsw: HashMap<usize, EnterPoint<N, T>>,
 }
 
 impl<const N: usize, T> Default for HNSW<N, T, Setup>
@@ -94,7 +93,6 @@ where
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
             enter_point_index: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
-            max_connections: DEFAULT_MAX_CONNECTIONS,
             hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
         }
     }
@@ -125,7 +123,6 @@ where
             nearest_elements: Vec::with_capacity(DEFAULT_CAPACITY),
             enter_point_index: None,
             econn: Vec::with_capacity(DEFAULT_CAPACITY),
-            max_connections: DEFAULT_MAX_CONNECTIONS,
             hnsw: HashMap::with_capacity(DEFAULT_CAPACITY),
         }
     }
@@ -163,12 +160,6 @@ where
         self
     }
 
-    /// Set the maximum number of connections for each element per layer.
-    pub fn set_max_connections(&mut self, max_connections: usize) -> &mut Self {
-        self.max_connections = max_connections;
-        self
-    }
-
     pub fn build(&mut self) -> HNSW<N, T, Ready> {
         let enter_points = Vec::with_capacity(self.capacity);
         let found_nearest_neighbors = Vec::with_capacity(self.capacity);
@@ -199,7 +190,6 @@ where
             nearest_elements,
             enter_point_index: None,
             econn,
-            max_connections: self.max_connections,
             hnsw,
         }
     }
@@ -280,7 +270,7 @@ where
                 self.found_nearest_neighbors
                     .extend_from_slice(&found_nearest_neighbors);
 
-                let mut neighbors = match self.neighbor_selection_algorithm {
+                let neighbors = match self.neighbor_selection_algorithm {
                     NeighborSelectionAlgorithm::Simple => {
                         self.select_neighbors_simple::<M>(query_element, Candidate::Neighbors)
                     }
@@ -332,7 +322,7 @@ where
                             self.econn.push(enter_point.clone());
                         });
 
-                    // TODO Split M_MAX_ZERO and M_MAX
+                    // Split M_MAX_ZERO and M_MAX
                     if layer == 0 && e.number_of_connections(layer) > M_MAX_ZERO {
                         let new_econn = match self.neighbor_selection_algorithm {
                             NeighborSelectionAlgorithm::Simple => self
@@ -373,7 +363,7 @@ where
                                 return Err(KNNError::Internal);
                             }
                         };
-                        e.connections.clear();
+                        e.clear_connections(layer);
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn_elements.iter().flatten().cloned() {
                             let overflow = e.connections.try_push(element);
@@ -418,7 +408,7 @@ where
                             Some(e) => e,
                             None => return Err(KNNError::Internal),
                         };
-                        e.connections.clear();
+                        e.clear_connections(layer);
                         // Set neighbourhood(e) at layer lc to eNewConn
                         for element in new_econn_elements.iter().flatten().cloned() {
                             let overflow = e.connections.try_push(element);
@@ -537,6 +527,7 @@ where
         });
 
         if self.nearest_elements.len() < K {
+            println!("{:#?}", self.nearest_elements);
             return Err(KNNError::InsufficientInsertions {
                 expected: K,
                 found: self.nearest_elements.len(),
@@ -558,7 +549,7 @@ where
     // Algorithm 3 - Select neighbours simple
     fn select_neighbors_simple<const NUMBER_OF_NEIGHBORS_TO_RETURN: usize>(
         &mut self,
-        base_element: impl Node<N, M, T>,
+        base_element: impl Node<N, T>,
         candidate: Candidate,
     ) -> [Option<usize>; NUMBER_OF_NEIGHBORS_TO_RETURN] {
         self.neighbors.clear();
@@ -634,7 +625,7 @@ where
     // Algorithm 4 - Select neighbours heuristic
     fn select_neighbors_heuristic<const NUMBER_OF_NEIGHBORS_TO_RETURN: usize>(
         &mut self,
-        base_element: impl Node<N, M, T>,
+        base_element: impl Node<N, T>,
         candidate: Candidate,
         layer: usize,
         extend_candidates: bool,
@@ -801,90 +792,30 @@ fn select_neighbors_heuristic_test() {
     let mut knn = HNSW::<DIMENSIONS, f32>::default()
         .set_distance(Distance::Euclidean)
         .build();
+    let mut connections = ArrayVec::<Element, 128>::new();
+    connections.try_push(Element::new(0, 2));
+    connections.try_push(Element::new(0, 1));
+    connections.try_push(Element::new(0, 0));
+    connections.index = 3;
+
+    let mut connections_2 = ArrayVec::<Element, 128>::new();
+    connections_2.try_push(Element::new(1, 2));
+    connections_2.try_push(Element::new(1, 1));
+    connections_2.try_push(Element::new(1, 0));
+    connections_2.index = 3;
+
     knn.found_nearest_neighbors = vec![
         EnterPoint {
             index: 1,
             layer: 7,
             value: [24.0, 24.0],
-            connections: ArrayVec {
-                inner: [
-                    Some(Element::new(0, 2)),
-                    Some(Element::new(0, 1)),
-                    Some(Element::new(0, 0)),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ],
-                index: 3,
-            },
+            connections,
         },
         EnterPoint {
             index: 0,
             layer: 2,
             value: [42.0, 42.0],
-            connections: ArrayVec {
-                inner: [
-                    Some(Element::new(1, 2)),
-                    Some(Element::new(1, 1)),
-                    Some(Element::new(1, 0)),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                ],
-                index: 3,
-            },
+            connections: connections_2,
         },
     ];
     let layer = 0;

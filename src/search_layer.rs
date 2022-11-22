@@ -1,21 +1,22 @@
-use crate::distance::Distance;
-use crate::enter_point::EnterPoint;
+use crate::enter_point::{self, EnterPoint};
 use crate::node::Node;
+use crate::query::Element;
+use crate::{array_vec::ArrayVec, distance::Distance};
 use num::Float;
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug, iter::Sum};
 
 #[derive(Clone, Debug)]
-pub struct SearchLayer<const N: usize, const M: usize, T>
+pub struct SearchLayer<const N: usize, T>
 where
     T: Float,
 {
-    visited_elements: Vec<EnterPoint<N, M, T>>,
-    candidates: Vec<EnterPoint<N, M, T>>,
-    found_nearest_neighbors: Vec<EnterPoint<N, M, T>>,
+    visited_elements: Vec<EnterPoint<N, T>>,
+    candidates: Vec<EnterPoint<N, T>>,
+    found_nearest_neighbors: Vec<EnterPoint<N, T>>,
     distance: Distance,
 }
 
-impl<'a, const N: usize, const M: usize, T> SearchLayer<N, M, T>
+impl<'a, const N: usize, T> SearchLayer<N, T>
 where
     T: Float + Sum + Debug,
 {
@@ -36,11 +37,11 @@ where
 
     pub fn search<const NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN: usize>(
         &mut self,
-        query_element: impl Node<N, M, T>,
-        enter_points: &[EnterPoint<N, M, T>],
+        query_element: impl Node<N, T>,
+        enter_points: &[EnterPoint<N, T>],
         layer: usize,
-        hnsw: &HashMap<usize, EnterPoint<N, M, T>>,
-    ) -> &[EnterPoint<N, M, T>] {
+        hnsw: &HashMap<usize, EnterPoint<N, T>>,
+    ) -> &[EnterPoint<N, T>] {
         // v ← ep // set of visited elements
         self.visited_elements.clear();
         self.visited_elements.extend_from_slice(enter_points);
@@ -73,7 +74,6 @@ where
                     Ordering::Less
                 }
             });
-
             if let Some(nearest) = self.candidates.pop() {
                 let furthest = match query_element
                     .furthest(self.found_nearest_neighbors.as_slice(), &self.distance)
@@ -88,9 +88,8 @@ where
                     > query_element.distance(&furthest, &self.distance)
                 {
                     // All elements in W are evaluated
-                    break;
+                    //break;
                 }
-
                 for e in nearest
                     .neighbourhood(layer)
                     .map(|element| hnsw.get(&element.get_index()))
@@ -115,7 +114,8 @@ where
                                 < NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
                         {
                             self.candidates.push(e.clone());
-                            self.found_nearest_neighbors.push(e);
+
+                            self.found_nearest_neighbors.push(e.clone());
                             if self.found_nearest_neighbors.len()
                                 > NUMBER_OF_NEAREST_TO_Q_ELEMENTS_TO_RETURN
                             {
@@ -167,9 +167,11 @@ mod search_layer_test {
     fn test_search_layer() {
         let capacity = 1024;
         let distance = crate::distance::Distance::Euclidean;
-        let mut search_layer = SearchLayer::<2, 16, f32>::new(distance, capacity);
-        let query_element = QueryElement { value: [2.1, 2.1] };
-        let mut enter_point = EnterPoint::new([11.0, 15.0], 3, 3);
+        let mut search_layer = SearchLayer::<2, f32>::new(distance, capacity);
+        let query_element = QueryElement {
+            value: [2.1_f32, 2.1],
+        };
+        let mut enter_point = EnterPoint::new([11_f32, 15.0], 3, 3);
         let _ = enter_point.connections.try_push(Element::new(1, 1));
         let _ = enter_point.connections.try_push(Element::new(2, 0));
         let enter_points = vec![enter_point];
