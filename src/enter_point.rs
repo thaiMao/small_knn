@@ -48,6 +48,23 @@ where
             .filter(move |connection| connection.get_layer() == layer)
     }
 
+    /// Remove connected neighbors for a given layer.
+    pub fn clear_connections(&mut self, layer: usize) {
+        let mut filtered_connections = [None; 128];
+
+        for (connection, conn) in self
+            .connections
+            .into_iter()
+            .flatten()
+            .filter(|c| c.get_layer() != layer)
+            .zip(filtered_connections.iter_mut())
+        {
+            *conn = Some(connection);
+        }
+
+        self.connections.inner = filtered_connections;
+    }
+
     /// Return the number of connections for a given layer.
     pub fn number_of_connections(&self, layer: usize) -> usize {
         self.connections
