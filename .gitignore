@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 /.vscode
+/test_data/**/*
+/tests/regression_tests.rs
