@@ -203,3 +203,171 @@ mod search_layer_test {
         assert_eq!(output, &[ep]);
     }
 }
+
+#[test]
+fn search_layer_zero_neighbors_test() {
+    use crate::QueryElement;
+
+    const K: usize = 5;
+    const DIMENSIONS: usize = 8;
+    const M: usize = 32;
+    let mut search_layer = SearchLayer::<DIMENSIONS, f32>::new(Distance::Euclidean, 1024);
+
+    let mut connections = ArrayVec::<Element, 128>::new();
+
+    connections.try_push(Element::new(4, 1));
+    connections.try_push(Element::new(33, 1));
+    connections.try_push(Element::new(9, 1));
+    connections.try_push(Element::new(8, 1));
+    connections.try_push(Element::new(10, 1));
+    connections.try_push(Element::new(3, 1));
+    connections.try_push(Element::new(5, 1));
+    connections.try_push(Element::new(15, 1));
+    connections.try_push(Element::new(34, 0));
+    connections.index = 9;
+    let enter_points = vec![EnterPoint {
+        index: 4,
+        layer: 1,
+        value: [
+            0.0230469704,
+            -0.62307477,
+            -0.20195961,
+            0.0387507677,
+            -0.658557177,
+            -0.197433949,
+            0.0382528305,
+            -0.658577204,
+        ],
+        connections,
+    }];
+
+    let layer = 0;
+    let mut hnsw = HashMap::new();
+    hnsw.insert(
+        4,
+        EnterPoint {
+            index: 4,
+            layer: 1,
+            value: [
+                0.0230469704,
+                -0.62307477,
+                -0.20195961,
+                0.0387507677,
+                -0.658557177,
+                -0.197433949,
+                0.0382528305,
+                -0.658577204,
+            ],
+            connections,
+        },
+    );
+
+    let mut connections = ArrayVec::new();
+    connections.try_push(Element::new(22, 8));
+    connections.try_push(Element::new(22, 7));
+    connections.try_push(Element::new(22, 6));
+    connections.try_push(Element::new(22, 5));
+    connections.try_push(Element::new(22, 4));
+    connections.try_push(Element::new(22, 3));
+    connections.try_push(Element::new(22, 2));
+    connections.try_push(Element::new(26, 1));
+    connections.try_push(Element::new(15, 1));
+    connections.try_push(Element::new(32, 1));
+    connections.try_push(Element::new(21, 1));
+    connections.try_push(Element::new(22, 1));
+    connections.try_push(Element::new(33, 1));
+    connections.try_push(Element::new(23, 1));
+    connections.try_push(Element::new(29, 1));
+    connections.try_push(Element::new(25, 1));
+    connections.try_push(Element::new(14, 1));
+    connections.try_push(Element::new(4, 1));
+    connections.try_push(Element::new(24, 1));
+    connections.try_push(Element::new(5, 1));
+    connections.try_push(Element::new(27, 1));
+    connections.try_push(Element::new(9, 1));
+    connections.try_push(Element::new(28, 1));
+    connections.try_push(Element::new(3, 1));
+    connections.try_push(Element::new(8, 1));
+    connections.try_push(Element::new(10, 1));
+    connections.try_push(Element::new(30, 1));
+    connections.try_push(Element::new(26, 1));
+    connections.try_push(Element::new(15, 0));
+    connections.try_push(Element::new(32, 0));
+    connections.try_push(Element::new(31, 0));
+    connections.try_push(Element::new(21, 0));
+    connections.index = 32;
+    hnsw.insert(
+        34,
+        EnterPoint {
+            index: 34,
+            layer: 8,
+            value: [
+                0.0210614204,
+                -0.624067008,
+                -0.187818527,
+                0.0429267883,
+                -0.658624887,
+                -0.18597126,
+                0.0424735546,
+                -0.658663272,
+            ],
+            connections,
+        },
+    );
+
+    hnsw.insert(
+        15,
+        EnterPoint {
+            index: 15,
+            layer: 0,
+            value: [0_f32; 8],
+            connections: ArrayVec::new(),
+        },
+    );
+
+    hnsw.insert(
+        32,
+        EnterPoint {
+            index: 32,
+            layer: 0,
+            value: [0_f32; 8],
+            connections: ArrayVec::new(),
+        },
+    );
+
+    hnsw.insert(
+        31,
+        EnterPoint {
+            index: 31,
+            layer: 0,
+            value: [0_f32; 8],
+            connections: ArrayVec::new(),
+        },
+    );
+
+    hnsw.insert(
+        21,
+        EnterPoint {
+            index: 21,
+            layer: 0,
+            value: [0_f32; 8],
+            connections: ArrayVec::new(),
+        },
+    );
+
+    let query_element = QueryElement {
+        value: [
+            -0.00517272949,
+            -0.663250923,
+            -0.220837593,
+            0.010566473,
+            -0.698032141,
+            -0.212332249,
+            0.010065794,
+            -0.698020935,
+        ],
+    };
+    let eps = search_layer.search::<K>(query_element, &enter_points, layer, &mut hnsw);
+
+    assert_eq!(eps.len(), K);
+}
