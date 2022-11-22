@@ -27,7 +27,7 @@ const DEFAULT_CAPACITY: usize = 128;
 // A simple choice for the optimal normalization factor is 1 / ln(M).
 const DEFAULT_NORMALIZATION_FACTOR: f32 = 3.0;
 const DEFAULT_NEIGHBOR_SELECTION_ALGORTHIM: NeighborSelectionAlgorithm =
-    NeighborSelectionAlgorithm::Heuristic;
+    NeighborSelectionAlgorithm::Simple;
 const DEFAULT_EXTEND_CANDIDATES: bool = true;
 const DEFAULT_KEEP_PRUNED_CONNECTIONS: bool = true;
 const DEFAULT_DISTANCE: Distance = Distance::Euclidean;
