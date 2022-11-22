@@ -27,7 +27,18 @@ where
                 self.index += 1;
                 Ok(())
             }
-            None => Err(KNNError::Internal),
+            None => {
+                // Returns an error when attempting to push an element when
+                // the array vec has reached full capacity.
+                // Ways to avoid this error include:
+                // 1. Trying to limit the potential height of the top layer by
+                // setting a low normalization factor.
+                // 2. Reducing the max number of allowed connections for an
+                // element at layer zero `M_MAX_ZERO`.
+                // 3. Or similarly, reduce `M_MAX`, the max number of
+                // connections for an element at each layer above layer zero.
+                Err(KNNError::FullCapacity)
+            }
         }
     }
 
