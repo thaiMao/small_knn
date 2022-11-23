@@ -50,7 +50,7 @@ where
 {
     stage: PhantomData<Stage>,
     enter_points: Vec<EnterPoint<N, T>>,
-    rng: rand::rngs::ThreadRng,
+    rng: rand::rngs::StdRng,
     search_layer: SearchLayer<N, T>,
     found_nearest_neighbors: Vec<EnterPoint<N, T>>,
     working_queue: Vec<EnterPoint<N, T>>,
@@ -73,7 +73,7 @@ where
     T: Float + Sum + Debug,
 {
     fn default() -> Self {
-        let rng = rand::thread_rng();
+        let rng = rand::SeedableRng::from_entropy();
 
         Self {
             stage: PhantomData::<Setup>,
@@ -103,7 +103,7 @@ where
     T: Float + Sum + Debug,
 {
     pub fn new(distance: Distance) -> Self {
-        let rng = rand::thread_rng();
+        let rng = rand::SeedableRng::from_entropy();
 
         Self {
             stage: PhantomData::<Setup>,
@@ -170,7 +170,7 @@ where
         let econn = Vec::with_capacity(self.capacity);
         let hnsw = HashMap::with_capacity(self.capacity);
 
-        let rng = rand::thread_rng();
+        let rng = rand::SeedableRng::from_entropy();
 
         HNSW::<N, T, Ready> {
             stage: PhantomData::<Ready>,
